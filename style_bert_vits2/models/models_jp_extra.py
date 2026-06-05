@@ -170,6 +170,7 @@ class StochasticDurationPredictor(nn.Module):
         n_flows: int = 4,
         gin_channels: int = 0,
         style_channels: int = 0,
+        cadence_channels: int = 0,
     ) -> None:
         super().__init__()
         filter_channels = in_channels  # it needs to be removed from future version.
@@ -180,6 +181,7 @@ class StochasticDurationPredictor(nn.Module):
         self.n_flows = n_flows
         self.gin_channels = gin_channels
         self.style_channels = style_channels
+        self.cadence_channels = cadence_channels
 
         self.log_flow = modules.Log()
         self.flows = nn.ModuleList()
@@ -217,6 +219,12 @@ class StochasticDurationPredictor(nn.Module):
             nn.init.zeros_(self.style_cond.weight)
             nn.init.zeros_(self.style_cond.bias)
 
+        # --- cadence_vec injection (zero-initialized) ---
+        if cadence_channels != 0:
+            self.cadence_cond = nn.Conv1d(cadence_channels, filter_channels, 1)
+            nn.init.zeros_(self.cadence_cond.weight)
+            nn.init.zeros_(self.cadence_cond.bias)
+
     def forward(
         self,
         x: torch.Tensor,
@@ -227,6 +235,8 @@ class StochasticDurationPredictor(nn.Module):
         noise_scale: float = 1.0,
         style_vec: Optional[torch.Tensor] = None,
         style_weight: float = 1.0,
+        cadence_vec: Optional[torch.Tensor] = None,
+        cadence_weight: float = 1.0,
     ) -> torch.Tensor:
         x = torch.detach(x)
         x = self.pre(x)
@@ -237,6 +247,10 @@ class StochasticDurationPredictor(nn.Module):
         if style_vec is not None and self.style_channels != 0:
             style = torch.detach(style_vec).unsqueeze(-1)  # [B, style_channels, 1]
             x = x + self.style_cond(style) * style_weight
+        # --- cadence_vec injection ---
+        if cadence_vec is not None and self.cadence_channels != 0:
+            cad = torch.detach(cadence_vec).unsqueeze(-1)  # [B, cadence_channels, 1]
+            x = x + self.cadence_cond(cad) * cadence_weight
         x = self.convs(x, x_mask)
         x = self.proj(x) * x_mask
 
@@ -302,6 +316,7 @@ class DurationPredictor(nn.Module):
         p_dropout: float,
         gin_channels: int = 0,
         style_channels: int = 0,
+        cadence_channels: int = 0,
     ) -> None:
         super().__init__()
 
@@ -311,6 +326,7 @@ class DurationPredictor(nn.Module):
         self.p_dropout = p_dropout
         self.gin_channels = gin_channels
         self.style_channels = style_channels
+        self.cadence_channels = cadence_channels
 
         self.drop = nn.Dropout(p_dropout)
         self.conv_1 = nn.Conv1d(
@@ -334,6 +350,12 @@ class DurationPredictor(nn.Module):
             nn.init.zeros_(self.style_cond.weight)
             nn.init.zeros_(self.style_cond.bias)
 
+        # --- cadence_vec injection (zero-initialized) ---
+        if cadence_channels != 0:
+            self.cadence_cond = nn.Conv1d(cadence_channels, in_channels, 1)
+            nn.init.zeros_(self.cadence_cond.weight)
+            nn.init.zeros_(self.cadence_cond.bias)
+
     def forward(
         self,
         x: torch.Tensor,
@@ -341,6 +363,8 @@ class DurationPredictor(nn.Module):
         g: Optional[torch.Tensor] = None,
         style_vec: Optional[torch.Tensor] = None,
         style_weight: float = 1.0,
+        cadence_vec: Optional[torch.Tensor] = None,
+        cadence_weight: float = 1.0,
     ) -> torch.Tensor:
         x = torch.detach(x)
         if g is not None:
@@ -352,6 +376,10 @@ class DurationPredictor(nn.Module):
         if style_vec is not None and self.style_channels != 0:
             style = torch.detach(style_vec).unsqueeze(-1)  # [B, style_channels, 1]
             x = x + self.style_cond(style) * style_weight
+        # --- cadence_vec injection ---
+        if cadence_vec is not None and self.cadence_channels != 0:
+            cad = torch.detach(cadence_vec).unsqueeze(-1)  # [B, cadence_channels, 1]
+            x = x + self.cadence_cond(cad) * cadence_weight
         x = self.conv_1(x * x_mask)
         x = torch.relu(x)
         x = self.norm_1(x)
@@ -1035,11 +1063,13 @@ class SynthesizerTrn(nn.Module):
             hidden_channels, 192, 3, 0.5, 4,
             gin_channels=gin_channels,
             style_channels=256,  # Layer A: enable style_vec injection into SDP
+            cadence_channels=32,  # cadence_vec injection into SDP
         )
         self.dp = DurationPredictor(
             hidden_channels, 256, 3, 0.5,
             gin_channels=gin_channels,
             style_channels=256,  # Layer A: enable style_vec injection into DP
+            cadence_channels=32,  # cadence_vec injection into DP
         )
 
         if n_speakers >= 1:
@@ -1053,6 +1083,10 @@ class SynthesizerTrn(nn.Module):
         # ここに self.style_weight_dec などを足していく。
         self.style_weight_dp = 1.0
         self.style_weight_sdp = 1.0
+        # --- cadence injection runtime knobs (1.0 = full, 0.0 = off) ---
+        # REPLACE 構成: style_weight_* = 0.0 かつ cadence_weight_* = 1.0
+        self.cadence_weight_dp = 1.0
+        self.cadence_weight_sdp = 1.0
 
     def forward(
         self,
@@ -1065,6 +1099,7 @@ class SynthesizerTrn(nn.Module):
         language: torch.Tensor,
         bert: torch.Tensor,
         style_vec: torch.Tensor,
+        cadence_vec: Optional[torch.Tensor] = None,
     ) -> tuple[
         torch.Tensor,
         torch.Tensor,
@@ -1122,6 +1157,7 @@ class SynthesizerTrn(nn.Module):
         l_length_sdp = self.sdp(
             x, x_mask, w, g=g,
             style_vec=style_vec, style_weight=self.style_weight_sdp,
+            cadence_vec=cadence_vec, cadence_weight=self.cadence_weight_sdp,
         )
         l_length_sdp = l_length_sdp / torch.sum(x_mask)
 
@@ -1129,6 +1165,7 @@ class SynthesizerTrn(nn.Module):
         logw = self.dp(
             x, x_mask, g=g,
             style_vec=style_vec, style_weight=self.style_weight_dp,
+            cadence_vec=cadence_vec, cadence_weight=self.cadence_weight_dp,
         )
         # logw_sdp = self.sdp(x, x_mask, g=g, reverse=True, noise_scale=1.0)
         l_length_dp = torch.sum((logw - logw_) ** 2, [1, 2]) / torch.sum(
@@ -1167,6 +1204,7 @@ class SynthesizerTrn(nn.Module):
         language: torch.Tensor,
         bert: torch.Tensor,
         style_vec: torch.Tensor,
+        cadence_vec: Optional[torch.Tensor] = None,
         noise_scale: float = 0.667,
         length_scale: float = 1.0,
         noise_scale_w: float = 0.8,
@@ -1187,9 +1225,11 @@ class SynthesizerTrn(nn.Module):
         logw = self.sdp(
             x, x_mask, g=g, reverse=True, noise_scale=noise_scale_w,
             style_vec=style_vec, style_weight=self.style_weight_sdp,
+            cadence_vec=cadence_vec, cadence_weight=self.cadence_weight_sdp,
         ) * (sdp_ratio) + self.dp(
             x, x_mask, g=g,
             style_vec=style_vec, style_weight=self.style_weight_dp,
+            cadence_vec=cadence_vec, cadence_weight=self.cadence_weight_dp,
         ) * (1 - sdp_ratio)
         w = torch.exp(logw) * x_mask * length_scale
         w_ceil = torch.ceil(w)

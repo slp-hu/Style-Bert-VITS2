@@ -101,8 +101,17 @@ class TextAudioSpeakerLoader(torch.utils.data.Dataset):
         spec, wav = self.get_audio(audiopath)
         sid = torch.LongTensor([int(self.spk_map[sid])])
         style_vec = torch.FloatTensor(np.load(f"{audiopath}.npy"))
+        try:
+            cadence_vec = torch.FloatTensor(np.load(f"{audiopath}.cadence.npy"))
+        except Exception:
+            if not getattr(self, "_cadence_warned", False):
+                logger.warning(
+                    f"cadence npy missing (e.g. {audiopath}.cadence.npy); using zeros(32)."
+                )
+                self._cadence_warned = True
+            cadence_vec = torch.zeros(32)
         if self.use_jp_extra:
-            return (phones, spec, wav, sid, tone, language, ja_bert, style_vec)
+            return (phones, spec, wav, sid, tone, language, ja_bert, style_vec, cadence_vec)
         else:
             return (
                 phones,
@@ -238,6 +247,7 @@ class TextAudioSpeakerCollate:
             ja_bert_padded = torch.FloatTensor(len(batch), 1024, max_text_len)
             en_bert_padded = torch.FloatTensor(len(batch), 1024, max_text_len)
         style_vec = torch.FloatTensor(len(batch), 256)
+        cadence_vec = torch.FloatTensor(len(batch), 32)
 
         spec_padded = torch.FloatTensor(len(batch), batch[0][1].size(0), max_spec_len)
         wav_padded = torch.FloatTensor(len(batch), 1, max_wav_len)
@@ -251,6 +261,7 @@ class TextAudioSpeakerCollate:
             ja_bert_padded.zero_()
             en_bert_padded.zero_()
         style_vec.zero_()
+        cadence_vec.zero_()
 
         for i in range(len(ids_sorted_decreasing)):
             row = batch[ids_sorted_decreasing[i]]
@@ -280,6 +291,7 @@ class TextAudioSpeakerCollate:
 
             if self.use_jp_extra:
                 style_vec[i, :] = row[7]
+                cadence_vec[i, :] = row[8]
             else:
                 ja_bert = row[7]
                 ja_bert_padded[i, :, : ja_bert.size(1)] = ja_bert
@@ -301,6 +313,7 @@ class TextAudioSpeakerCollate:
                 language_padded,
                 bert_padded,
                 style_vec,
+                cadence_vec,
             )
         else:
             return (

@@ -361,6 +361,28 @@ def run():
         for param in net_g.dec.parameters():
             param.requires_grad = False
 
+    if getattr(hps.train, "cadence_finetune", False):
+        logger.info(
+            "Cadence fine-tune: REPLACE (style_weight_*=0, cadence_weight_*=1) "
+            "+ freeze all except dp/sdp."
+        )
+        net_g.style_weight_dp = 0.0
+        net_g.style_weight_sdp = 0.0
+        net_g.cadence_weight_dp = 1.0
+        net_g.cadence_weight_sdp = 1.0
+        n_train, n_total = 0, 0
+        for _name, _param in net_g.named_parameters():
+            n_total += 1
+            if _name.split(".")[0] in ("dp", "sdp"):
+                _param.requires_grad = True
+                n_train += 1
+            else:
+                _param.requires_grad = False
+        logger.info(
+            f"Cadence fine-tune: {n_train}/{n_total} param tensors trainable "
+            "(dp/sdp incl. cadence_cond)."
+        )
+
     net_d = MultiPeriodDiscriminator(hps.model.use_spectral_norm).cuda(local_rank)
     optim_g = torch.optim.AdamW(
         filter(lambda p: p.requires_grad, net_g.parameters()),
@@ -718,6 +740,7 @@ def train_and_evaluate(
         language,
         bert,
         style_vec,
+        cadence_vec,
     ) in enumerate(train_loader):
         if net_g.module.use_noise_scaled_mas:
             current_mas_noise_scale = (
@@ -739,6 +762,7 @@ def train_and_evaluate(
         language = language.cuda(local_rank, non_blocking=True)
         bert = bert.cuda(local_rank, non_blocking=True)
         style_vec = style_vec.cuda(local_rank, non_blocking=True)
+        cadence_vec = cadence_vec.cuda(local_rank, non_blocking=True)
 
         with autocast(enabled=hps.train.bf16_run, dtype=torch.bfloat16):
             (
@@ -761,6 +785,7 @@ def train_and_evaluate(
                 language,
                 bert,
                 style_vec,
+                cadence_vec,
             )
             mel = spec_to_mel_torch(
                 spec,
@@ -1065,6 +1090,7 @@ def evaluate(hps, generator, eval_loader, writer_eval):
             language,
             bert,
             style_vec,
+            cadence_vec,
         ) in enumerate(eval_loader):
             x, x_lengths = x.cuda(), x_lengths.cuda()
             spec, spec_lengths = spec.cuda(), spec_lengths.cuda()
@@ -1074,6 +1100,7 @@ def evaluate(hps, generator, eval_loader, writer_eval):
             tone = tone.cuda()
             language = language.cuda()
             style_vec = style_vec.cuda()
+            cadence_vec = cadence_vec.cuda()
             for use_sdp in [True, False]:
                 y_hat, attn, mask, *_ = generator.module.infer(
                     x,
@@ -1083,6 +1110,7 @@ def evaluate(hps, generator, eval_loader, writer_eval):
                     language,
                     bert,
                     style_vec,
+                    cadence_vec,
                     y=spec,
                     max_len=1000,
                     sdp_ratio=0.0 if not use_sdp else 1.0,
