@@ -247,9 +247,15 @@ class StochasticDurationPredictor(nn.Module):
         if style_vec is not None and self.style_channels != 0:
             style = torch.detach(style_vec).unsqueeze(-1)  # [B, style_channels, 1]
             x = x + self.style_cond(style) * style_weight
-        # --- cadence_vec injection ---
+        # --- cadence injection (Plan B: time-resolved, phoneme-axis) ---
+        # cadence_vec is now a sequence aligned to the phoneme axis:
+        #   [B, cadence_channels, T_x]  (T_x == x's phoneme length).
+        # Backward-compat: a 2-D [B, cadence_channels] global vector is
+        # broadcast over T_x exactly as in Layer A.
         if cadence_vec is not None and self.cadence_channels != 0:
-            cad = torch.detach(cadence_vec).unsqueeze(-1)  # [B, cadence_channels, 1]
+            cad = torch.detach(cadence_vec)
+            if cad.dim() == 2:  # global -> broadcast over time
+                cad = cad.unsqueeze(-1)  # [B, cadence_channels, 1]
             x = x + self.cadence_cond(cad) * cadence_weight
         x = self.convs(x, x_mask)
         x = self.proj(x) * x_mask
@@ -376,9 +382,15 @@ class DurationPredictor(nn.Module):
         if style_vec is not None and self.style_channels != 0:
             style = torch.detach(style_vec).unsqueeze(-1)  # [B, style_channels, 1]
             x = x + self.style_cond(style) * style_weight
-        # --- cadence_vec injection ---
+        # --- cadence injection (Plan B: time-resolved, phoneme-axis) ---
+        # cadence_vec is now a sequence aligned to the phoneme axis:
+        #   [B, cadence_channels, T_x]  (T_x == x's phoneme length).
+        # Backward-compat: a 2-D [B, cadence_channels] global vector is
+        # broadcast over T_x exactly as in Layer A.
         if cadence_vec is not None and self.cadence_channels != 0:
-            cad = torch.detach(cadence_vec).unsqueeze(-1)  # [B, cadence_channels, 1]
+            cad = torch.detach(cadence_vec)
+            if cad.dim() == 2:  # global -> broadcast over time
+                cad = cad.unsqueeze(-1)  # [B, cadence_channels, 1]
             x = x + self.cadence_cond(cad) * cadence_weight
         x = self.conv_1(x * x_mask)
         x = torch.relu(x)

@@ -19,6 +19,12 @@ from style_bert_vits2.nlp import cleaned_text_to_sequence
 config = get_config()
 """Multi speaker version"""
 
+# --- Plan B: time-resolved cadence ---
+# Channel dim of the per-mora/per-phoneme cadence embedding. Kept at 32 so the
+# model's `cadence_cond = Conv1d(32, ch, 1)` is shape-identical to Layer A
+# (zero-init still valid; the trained pilot cadence_cond can be warm-started).
+CADENCE_DIM = 32
+
 
 class TextAudioSpeakerLoader(torch.utils.data.Dataset):
     """
@@ -101,15 +107,35 @@ class TextAudioSpeakerLoader(torch.utils.data.Dataset):
         spec, wav = self.get_audio(audiopath)
         sid = torch.LongTensor([int(self.spk_map[sid])])
         style_vec = torch.FloatTensor(np.load(f"{audiopath}.npy"))
+        # --- Plan B: time-resolved cadence aligned to the phoneme axis ---
+        # sidecar `{audiopath}.cadseq.npy` has shape (P, CADENCE_DIM), where P is
+        # the number of phonemes BEFORE add_blank interspersing (== esd.list
+        # `phones`). Here we mirror commons.intersperse to lift it onto the same
+        # T_x axis as `phones`, then store it channel-first as [CADENCE_DIM, T_x].
+        T_x = phones.size(0)
+        cadence_vec = torch.zeros(CADENCE_DIM, T_x)  # default = off (zeros)
         try:
-            cadence_vec = torch.FloatTensor(np.load(f"{audiopath}.cadence.npy"))
+            cad = torch.FloatTensor(np.load(f"{audiopath}.cadseq.npy"))  # (P, d)
+            if self.add_blank:
+                # commons.intersperse(lst, 0): item at even idx, data at odd idx
+                cad_b = torch.zeros(cad.size(0) * 2 + 1, cad.size(1))
+                cad_b[1::2] = cad
+                cad = cad_b
+            if cad.dim() == 2 and cad.size(0) == T_x and cad.size(1) == CADENCE_DIM:
+                cadence_vec = cad.transpose(0, 1).contiguous()  # [d, T_x]
+            elif not getattr(self, "_cadence_warned", False):
+                logger.warning(
+                    f"cadseq shape mismatch for {audiopath}: got {tuple(cad.shape)} "
+                    f"vs expected ({T_x}, {CADENCE_DIM}); using zeros([d, T_x])."
+                )
+                self._cadence_warned = True
         except Exception:
             if not getattr(self, "_cadence_warned", False):
                 logger.warning(
-                    f"cadence npy missing (e.g. {audiopath}.cadence.npy); using zeros(32)."
+                    f"cadseq npy missing (e.g. {audiopath}.cadseq.npy); "
+                    f"using zeros([{CADENCE_DIM}, T_x])."
                 )
                 self._cadence_warned = True
-            cadence_vec = torch.zeros(32)
         if self.use_jp_extra:
             return (phones, spec, wav, sid, tone, language, ja_bert, style_vec, cadence_vec)
         else:
@@ -247,7 +273,8 @@ class TextAudioSpeakerCollate:
             ja_bert_padded = torch.FloatTensor(len(batch), 1024, max_text_len)
             en_bert_padded = torch.FloatTensor(len(batch), 1024, max_text_len)
         style_vec = torch.FloatTensor(len(batch), 256)
-        cadence_vec = torch.FloatTensor(len(batch), 32)
+        # Plan B: time-resolved cadence, padded like bert -> [B, d, T_x_max]
+        cadence_padded = torch.FloatTensor(len(batch), CADENCE_DIM, max_text_len)
 
         spec_padded = torch.FloatTensor(len(batch), batch[0][1].size(0), max_spec_len)
         wav_padded = torch.FloatTensor(len(batch), 1, max_wav_len)
@@ -261,7 +288,7 @@ class TextAudioSpeakerCollate:
             ja_bert_padded.zero_()
             en_bert_padded.zero_()
         style_vec.zero_()
-        cadence_vec.zero_()
+        cadence_padded.zero_()
 
         for i in range(len(ids_sorted_decreasing)):
             row = batch[ids_sorted_decreasing[i]]
@@ -291,7 +318,7 @@ class TextAudioSpeakerCollate:
 
             if self.use_jp_extra:
                 style_vec[i, :] = row[7]
-                cadence_vec[i, :] = row[8]
+                cadence_padded[i, :, : row[8].size(1)] = row[8]  # row[8]: [d, T_x]
             else:
                 ja_bert = row[7]
                 ja_bert_padded[i, :, : ja_bert.size(1)] = ja_bert
@@ -313,7 +340,7 @@ class TextAudioSpeakerCollate:
                 language_padded,
                 bert_padded,
                 style_vec,
-                cadence_vec,
+                cadence_padded,
             )
         else:
             return (
