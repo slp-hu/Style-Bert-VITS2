@@ -69,20 +69,29 @@ python train_ms_jp_extra.py  -c Data/cv_r1/config.json -m Data/cv_r1
 > **なぜローカル展開か**: Google Drive 直読みの学習は小ファイル I/O が律速となり GPU 使用率が
 > 0% に張り付く（完走に丸1日超）。Zenodo の tar（単一大ファイル）を VM ローカルに直接
 > ダウンロード・展開することで全区間 ~3.3 it/s、2 時間強で完走する。
+> DL は **aria2 の 16 並列**で行う（Zenodo は単一接続だと 1〜2 MB/s まで落ちることがあるため）。
+> それでも遅い場合や繰り返し使う場合は、tar 2 本を `DRIVE_BASE/zenodo_cache/` に置いておくと
+> Zenodo を経由せず Drive から複写する（取得セルの `CACHE_TO_DRIVE = True` で自動保存も可能）。
 
 ## 無料 Colab での動作確認（スモーク学習）
 
-train ノート §1.5 で `SMOKE = True` にすると、サブセット（既定: 発話数上位 30 話者 × 40 発話
-≒ 1,200 行、batch 8、2 epoch ≒ 300 step、100 step ごと保存）でパイプライン全体を通す。
-無料枠の T4 で**全体 40 分前後**に収まり、環境構築 → bert_gen → style_gen → warm-start 学習 →
-checkpoint 保存までを検証できる（T4 は標準経路 = torch 2.3.1・再起動不要）。
+train ノート §1.5 で `SMOKE = True` にすると、**専用サブセットバンドル**
+`cadence_cv_r1_smoke_v1.tgz`（発話数上位 30 話者 × train 40 発話 ≒ 1,200 行 + val 60 行、~0.3 GB、
+GitHub Releases 配布）でパイプライン全体を通す。全量 4.81 GiB を落とさないため DL は 1〜2 分。
+既定の batch 8 / 2 epoch ≒ 300 step（100 step ごと保存）で、無料枠の T4 なら**全体 30 分前後**に
+収まり、環境構築 → bert_gen → style_gen → warm-start 学習 → checkpoint 保存までを検証できる
+（T4 は標準経路 = torch 2.3.1・再起動不要）。
 
 - checkpoint はスモーク専用の `Data/cv_r1_smoke/models/`（VM ローカル・揮発）に保存され、
   **Drive の本番 `models/` には書かない**（本番 checkpoint からの誤再開も起きない）。
   合成用モデルも `model_assets/cv_r1_smoke/` に分離される。
-- spk2id（298 話者）と底モデルはそのまま使うため、モデル形状・warm-start の検証としては本番と等価。
+- バンドル内の config は全量と同一で spk2id（298 話者）を維持し、底モデルもそのまま使うため、
+  モデル形状・warm-start の検証としては本番と等価。
 - compute capability < 8.0 の GPU（T4 = 7.5 等）では bf16/fp16 を自動で無効化する（fp32）。
 - 学習品質の評価には使えない（step 数が2桁足りない）。目的は配管の検証のみ。
+- バンドルは `colab/make_smoke_bundle.py` で全量 `Data/cv_r1` から決定的に再生成できる
+  （GitHub Releases: tag `cv_r1-smoke-v1` / アセット名 `cadence_cv_r1_smoke_v1.tgz` 固定。
+  ノートの取得 URL がこの tag・名前を指しているため変更しないこと）。
 
 ## Colab が Blackwell 系 GPU（sm_120）を割り当てた場合
 
