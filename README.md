@@ -1,43 +1,59 @@
-## cadence CV-298 (`cv_r1`) — 声道リズム仮名化 CV サブトラック
- 
+<!-- ==================================================================== -->
+<!-- ▼▼▼ fork 追記セクション（cadence cv_r1）ここから ▼▼▼                    -->
+<!-- このコメントから下・番兵コメントまでが fork による追記。               -->
+<!-- 番兵コメント以降の「# Style-Bert-VITS2」節は upstream の原文（無改変）。 -->
+<!-- ==================================================================== -->
+
+# cadence CV-298 (`cv_r1`) — 声道リズム仮名化 CV サブトラック
+
+> このセクションは fork（`slp-hu/Style-Bert-VITS2`, branch `layer-b-cadence-seq`）による追記です。
+> オリジナルの Style-Bert-VITS2 README は下の区切り線以下にそのまま残しています。
+
 Common Voice (ja, CC0) 単独で完結する独立モデル。CSJ を持たない第三者もゼロから再現・学習できる。
 学習コードはこの fork（branch `layer-b-cadence-seq`）、配布データセットは Zenodo（下記 DOI）。
- 
-### Colab で実行
- 
+
+## Colab で実行
+
 順番に実行する（①環境セットアップ → ②配置・検証）。`②` の検証セル（§3）が **学習開始ゲート**。
- 
+
 | 手順 | ノート | Colab |
 |---|---|---|
-| ① 環境セットアップ（fork clone＋底モデル取得） | `cv_r1_train_setup_colab.ipynb` | [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/slp-hu/Style-Bert-VITS2/blob/layer-b-cadence-seq/cv_r1_train_setup_colab.ipynb) |
-| ② 配布バンドル展開・配置・検証 | `cv_r1_deploy_colab.ipynb` | [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/slp-hu/Style-Bert-VITS2/blob/layer-b-cadence-seq/cv_r1_deploy_colab.ipynb) |
- 
+| ① 環境セットアップ（fork clone＋底モデル取得） | `colab/cv_r1_train_setup_colab.ipynb` | [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/slp-hu/Style-Bert-VITS2/blob/layer-b-cadence-seq/colab/cv_r1_train_setup_colab.ipynb) |
+| ② 配布バンドル展開・配置・検証 | `colab/cv_r1_deploy_colab.ipynb` | [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/slp-hu/Style-Bert-VITS2/blob/layer-b-cadence-seq/colab/cv_r1_deploy_colab.ipynb) |
+
 「そのまま使う」なら **無編集で通る**（`FORK_URL` / `META_SRC` / `WAVS_SRC` / `BASE` の既定値は設定済み）。
 `BASE` 等を変える場合は Colab の「ドライブにコピーを保存」で保存してから編集する。
- 
-### データセット（配布バンドル）
- 
+
+## データセット（配布バンドル）
+
 [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.21119791.svg)](https://doi.org/10.5281/zenodo.21119791)
- 
+
 - `cadence_cv_r1_meta_v20260702.tgz`（31.9 MiB）: config.json / esd×3 / cadseq 11010 / MANIFEST 他
 - `cadence_cv_r1_wavs_v20260702.tar`（4.81 GiB, 無圧縮）: wav ×18015（sr 44100 mono）
 - 298 話者 / esd train 14226・val 3789。tar 内パスは `Data/cv_r1/...` 固定（学習ルートで展開するだけ）
-### 実行順（最短・「そのまま使う」）
- 
+
+## 実行順（最短・「そのまま使う」）
+
 1. `①` setup を実行（`§1/§3/§4`。CPU で可）
 2. `②` deploy を実行（`BASE` を setup と同じ値に。`§3` 検証を全通過させる）
 3. `bert_gen` → `style_gen`（GPU）。**`preprocess_text` は走らせない**（配置済み esd の spk2id を再生成し得る）
 4. `train_ms_jp_extra`（`batch=16 / 10 epoch ≈ 8,900 step`, `freeze_decoder=True` は config 設定済み）
-### ライセンス
- 
-- データ加工物・パイプライン: **CC0**（Zenodo レコードに準拠）
-- **学習 ckpt は底モデル（JP-Extra 事前学習モデル）のライセンスに従属**
-  — 底モデル = HF [`litagin/Style-Bert-VITS2-2.0-base-JP-Extra`](https://huggingface.co/litagin/Style-Bert-VITS2-2.0-base-JP-Extra)。
-  公開前に同リポジトリのライセンス表記を確認し、ここに転記すること。
 
+## ライセンス
 
+3層に分かれる点に注意:
 
-Below is the original README.md.
+- **コード（本 fork・`colab/` の Colab ノートを含む）: AGPL-3.0 / LGPL-3.0** — upstream Style-Bert-VITS2 を継承（下の upstream README の LICENSE 節、およびリポジトリの `LICENSE` / `LGPL_LICENSE` を参照）
+- **データ加工物・パイプライン: CC0** — Zenodo レコード（DOI 10.5281/zenodo.21119791）に準拠
+- **学習 ckpt は底モデル（JP-Extra 事前学習モデル）のライセンスに従属** — 底モデル = HF [`litagin/Style-Bert-VITS2-2.0-base-JP-Extra`](https://huggingface.co/litagin/Style-Bert-VITS2-2.0-base-JP-Extra)。公開前に同リポジトリのライセンス表記を確認し、ここに転記すること。
+
+<!-- ==================================================================== -->
+<!-- ▲▲▲ fork 追記セクション ここまで／以下は upstream README（無改変）▲▲▲   -->
+<!-- ==================================================================== -->
+
+---
+
+> **以下は upstream ([litagin02/Style-Bert-VITS2](https://github.com/litagin02/Style-Bert-VITS2)) のオリジナル README です（無改変）。**
 
 # Style-Bert-VITS2
 
