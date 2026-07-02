@@ -14,12 +14,13 @@ Common Voice (ja, CC0) 単独で完結する独立モデル。CSJ を持たな�
 
 ## Colab で実行
 
-順番に実行する（①環境セットアップ → ②配置・検証）。`②` の検証セル（§3）が **学習開始ゲート**。
+順番に実行する（①環境セットアップ → ②配置・検証 → ③学習）。`②` の検証セル（§3）が **学習開始ゲート**。①②は CPU 可、③は **GPU 必須**。
 
-| 手順 | ノート | Colab |
-|---|---|---|
-| ① 環境セットアップ（fork clone＋底モデル取得） | `colab/cv_r1_train_setup_colab.ipynb` | [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/slp-hu/Style-Bert-VITS2/blob/layer-b-cadence-seq/colab/cv_r1_train_setup_colab.ipynb) |
-| ② 配布バンドル展開・配置・検証 | `colab/cv_r1_deploy_colab.ipynb` | [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/slp-hu/Style-Bert-VITS2/blob/layer-b-cadence-seq/colab/cv_r1_deploy_colab.ipynb) |
+| 手順 | ノート | ランタイム | Colab |
+|---|---|---|---|
+| ① 環境セットアップ（fork clone＋底モデル取得） | `colab/cv_r1_train_setup_colab.ipynb` | CPU 可 | [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/slp-hu/Style-Bert-VITS2/blob/layer-b-cadence-seq/colab/cv_r1_train_setup_colab.ipynb) |
+| ② 配布バンドル展開・配置・検証 | `colab/cv_r1_deploy_colab.ipynb` | CPU 可 | [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/slp-hu/Style-Bert-VITS2/blob/layer-b-cadence-seq/colab/cv_r1_deploy_colab.ipynb) |
+| ③ bert_gen → style_gen → 学習 | `colab/cv_r1_train_colab.ipynb` | **GPU** | [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/slp-hu/Style-Bert-VITS2/blob/layer-b-cadence-seq/colab/cv_r1_train_colab.ipynb) |
 
 「そのまま使う」なら **無編集で通る**（`FORK_URL` / `META_SRC` / `WAVS_SRC` / `BASE` の既定値は設定済み）。
 `BASE` 等を変える場合は Colab の「ドライブにコピーを保存」で保存してから編集する。
@@ -36,8 +37,19 @@ Common Voice (ja, CC0) 単独で完結する独立モデル。CSJ を持たな�
 
 1. `①` setup を実行（`§1/§3/§4`。CPU で可）
 2. `②` deploy を実行（`BASE` を setup と同じ値に。`§3` 検証を全通過させる）
-3. `bert_gen` → `style_gen`（GPU）。**`preprocess_text` は走らせない**（配置済み esd の spk2id を再生成し得る）
-4. `train_ms_jp_extra`（`batch=16 / 10 epoch ≈ 8,900 step`, `freeze_decoder=True` は config 設定済み）
+3. `③` train を **GPU ランタイム**で実行 — bert_gen → style_gen → 学習を1本で回す。**`preprocess_text` は走らせない**（配置済み esd の spk2id を再生成し得る）
+
+③のノートが実行するコマンド（cwd = fork 直下）:
+
+```
+python bert_gen.py           -c Data/cv_r1/config.json
+python style_gen.py          -c Data/cv_r1/config.json
+python train_ms_jp_extra.py  -c Data/cv_r1/config.json -m Data/cv_r1
+```
+
+- `-m` は**データセットフォルダのパス**（`Data/cv_r1`）。`cv_r1` 単体は誤り（checkpoint がリポジトリ直下の別ツリーに落ちる）。
+- checkpoint は `Data/cv_r1/models/` に保存。`batch=16 / 10 epoch ≈ 8,900 step`, `freeze_decoder=True` は config 設定済み。
+- 切断後は `③` の §1→§2 を実行してから学習セルを再実行（最新 checkpoint から再開）。
 
 ## ライセンス
 
