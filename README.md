@@ -14,16 +14,19 @@ Common Voice (ja, CC0) 単独で完結する独立モデル。CSJ を持たな�
 
 ## Colab で実行
 
-順番に実行する（①環境セットアップ → ②配置・検証 → ③学習）。`②` の検証セル（§3）が **学習開始ゲート**。①②は CPU 可、③は **GPU 必須**。
-
 | 手順 | ノート | ランタイム | Colab |
 |---|---|---|---|
-| ① 環境セットアップ（fork clone＋底モデル取得） | `colab/cv_r1_train_setup_colab.ipynb` | CPU 可 | [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/slp-hu/Style-Bert-VITS2/blob/layer-b-cadence-seq/colab/cv_r1_train_setup_colab.ipynb) |
-| ② 配布バンドル展開・配置・検証 | `colab/cv_r1_deploy_colab.ipynb` | CPU 可 | [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/slp-hu/Style-Bert-VITS2/blob/layer-b-cadence-seq/colab/cv_r1_deploy_colab.ipynb) |
-| ③ bert_gen → style_gen → 学習 | `colab/cv_r1_train_colab.ipynb` | **GPU** | [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/slp-hu/Style-Bert-VITS2/blob/layer-b-cadence-seq/colab/cv_r1_train_colab.ipynb) |
+| ① 環境セットアップ（fork clone＋底モデル取得。**1回だけ**） | `colab/cv_r1_train_setup_colab.ipynb` | CPU 可 | [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/slp-hu/Style-Bert-VITS2/blob/layer-b-cadence-seq/colab/cv_r1_train_setup_colab.ipynb) |
+| ② データ取得 → bert_gen → style_gen → 学習 | `colab/cv_r1_train_colab.ipynb` | **GPU** | [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/slp-hu/Style-Bert-VITS2/blob/layer-b-cadence-seq/colab/cv_r1_train_colab.ipynb) |
+| ③ 話者評価（弾き分け / UTMOS / virtual 話者） | `colab/cv_r1_eval_speaker.ipynb` | **GPU** | [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/slp-hu/Style-Bert-VITS2/blob/layer-b-cadence-seq/colab/cv_r1_eval_speaker.ipynb) |
 
-「そのまま使う」なら **無編集で通る**（`FORK_URL` / `META_SRC` / `WAVS_SRC` / `BASE` の既定値は設定済み）。
-`BASE` 等を変える場合は Colab の「ドライブにコピーを保存」で保存してから編集する。
+「そのまま使う」なら **無編集で通る**（setup の `FORK_URL` / `BRANCH` / `BASE`、train / eval の
+`DRIVE_BASE` は既定値設定済みで、ノート間で整合している）。変える場合は Colab の
+「ドライブにコピーを保存」で保存してから編集する。
+`colab/` には ③ が使う x-vector 抽出スクリプト `xvec_extract.py` も同梱している。
+
+> **旧 `cv_r1_deploy_colab.ipynb`（Drive へのデータ常設展開）は廃止した。**
+> 現行の train / eval ノートが Zenodo からデータを直接 VM ローカルに展開するため不要になった。
 
 ## データセット（配布バンドル）
 
@@ -31,15 +34,21 @@ Common Voice (ja, CC0) 単独で完結する独立モデル。CSJ を持たな�
 
 - `cadence_cv_r1_meta_v20260702.tgz`（31.9 MiB）: config.json / esd×3 / cadseq 11010 / MANIFEST 他
 - `cadence_cv_r1_wavs_v20260702.tar`（4.81 GiB, 無圧縮）: wav ×18015（sr 44100 mono）
-- 298 話者 / esd train 14226・val 3789。tar 内パスは `Data/cv_r1/...` 固定（学習ルートで展開するだけ）
+- 298 話者 / esd train 14226・val 3789
+- **手動でのダウンロード・展開は不要**（train / eval ノートが自動で取得し、`config.json` の位置から
+  データセットルートを判定して配置・検証する）
 
 ## 実行順（最短・「そのまま使う」）
 
-1. `①` setup を実行（`§1/§3/§4`。CPU で可）
-2. `②` deploy を実行（`BASE` を setup と同じ値に。`§3` 検証を全通過させる）
-3. `③` train を **GPU ランタイム**で実行 — bert_gen → style_gen → 学習を1本で回す。**`preprocess_text` は走らせない**（配置済み esd の spk2id を再生成し得る）
+1. `①` setup を実行（CPU で可・**初回の1回だけ**。Drive に fork を clone し底モデル等を取得する）
+2. `②` train を **GPU ランタイム**で実行 — GPU を自動判定して環境を構築し
+   （標準 GPU = torch 2.3.1 / Blackwell = torch 2.11+cu128 入替 + 再起動 + shim。下の注意節を参照）、
+   **Zenodo からデータを VM ローカル `/content` に直接展開**して bert_gen → style_gen → 学習まで
+   1本で回す。**`preprocess_text` は走らせない**（配置済み esd の spk2id を再生成し得る）
+3. `③` eval を実行 — 弾き分け（x-vector）・自然性（UTMOS）・virtual 話者を評価。ノート冒頭 §0 が
+   環境をゼロから再構築するので、学習と同一セッションである必要はない
 
-③のノートが実行するコマンド（cwd = fork 直下）:
+②のノートが実行するコマンド（cwd = ローカルの fork 直下）:
 
 ```
 python bert_gen.py           -c Data/cv_r1/config.json
@@ -47,9 +56,51 @@ python style_gen.py          -c Data/cv_r1/config.json
 python train_ms_jp_extra.py  -c Data/cv_r1/config.json -m Data/cv_r1
 ```
 
-- `-m` は**データセットフォルダのパス**（`Data/cv_r1`）。`cv_r1` 単体は誤り（checkpoint がリポジトリ直下の別ツリーに落ちる）。
-- checkpoint は `Data/cv_r1/models/` に保存。`batch=16 / 10 epoch ≈ 8,900 step`, `freeze_decoder=True` は config 設定済み。
-- 切断後は `③` の §1→§2 を実行してから学習セルを再実行（最新 checkpoint から再開）。
+- `-m` は**モデル出力フォルダのパス**（`Data/cv_r1`）。`cv_r1` 単体は誤り（checkpoint がリポジトリ
+  直下の別ツリーに落ちる）。
+- checkpoint は `Data/cv_r1/models/`、合成用モデルは `model_assets/` に保存される。どちらも
+  **Drive への symlink** になっており、実体は Drive に永続化される（VM が切れても消えない）。
+- `batch=16 / 10 epoch ≈ 8,900〜9,000 step`, `freeze_decoder=True` は config 設定済み。
+  ローカル運用で ~3.3 it/s、全量 2 時間強。1000 step ごとに保存（Drive 書込で数分の「谷」は正常）。
+- 開始直後のログで warm-start を必ず確認する: 「Loaded the pretrained models」+ Missing key
+  （`cadence_cond` / `emb_g` は新規層なので正常）なら OK。「train from scratch」が出たら即中断。
+- 切断後は ② の §1→§5 を再実行してから学習セルを再実行（Drive 上の最新 checkpoint から自動再開）。
+
+> **なぜローカル展開か**: Google Drive 直読みの学習は小ファイル I/O が律速となり GPU 使用率が
+> 0% に張り付く（完走に丸1日超）。Zenodo の tar（単一大ファイル）を VM ローカルに直接
+> ダウンロード・展開することで全区間 ~3.3 it/s、2 時間強で完走する。
+
+## 無料 Colab での動作確認（スモーク学習）
+
+train ノート §1.5 で `SMOKE = True` にすると、サブセット（既定: 発話数上位 30 話者 × 40 発話
+≒ 1,200 行、batch 8、2 epoch ≒ 300 step、100 step ごと保存）でパイプライン全体を通す。
+無料枠の T4 で**全体 40 分前後**に収まり、環境構築 → bert_gen → style_gen → warm-start 学習 →
+checkpoint 保存までを検証できる（T4 は標準経路 = torch 2.3.1・再起動不要）。
+
+- checkpoint はスモーク専用の `Data/cv_r1_smoke/models/`（VM ローカル・揮発）に保存され、
+  **Drive の本番 `models/` には書かない**（本番 checkpoint からの誤再開も起きない）。
+  合成用モデルも `model_assets/cv_r1_smoke/` に分離される。
+- spk2id（298 話者）と底モデルはそのまま使うため、モデル形状・warm-start の検証としては本番と等価。
+- compute capability < 8.0 の GPU（T4 = 7.5 等）では bf16/fp16 を自動で無効化する（fp32）。
+- 学習品質の評価には使えない（step 数が2桁足りない）。目的は配管の検証のみ。
+
+## Colab が Blackwell 系 GPU（sm_120）を割り当てた場合
+
+Colab は NVIDIA RTX PRO 6000 Blackwell（compute capability 12.0 = sm_120）を割り当てることが
+ある。requirements の pin（torch 2.3.1 / cu121, sm_90 まで）はこの GPU に**非対応**で、bert_gen
+などの GPU forward で失敗する。
+
+train / eval ノートの §2 は `nvidia-smi` で compute capability を判定し、sm_100 以上なら自動で
+以下を行う（手作業は不要。ノートの指示どおり**再起動 → 先頭セルから再実行**するだけ）:
+
+1. torch / torchaudio を **2.11.0+cu128** に入替（→ ランタイム再起動が必須）
+2. `sitecustomize.py` + `PYTHONPATH` による互換 shim を注入
+   （torch 2.11 系で削除された `torchaudio.set_audio_backend` の復活、`torchaudio.load` / `info` の
+   soundfile 実装への置換、`torch.load` の `weights_only` 既定復元）。`!python` で走る bert_gen /
+   style_gen / train は別プロセスのため、この方式でないと効かない。
+
+また x-vector 評価に使う TensorFlow の Colab ビルドも Blackwell 非対応のため、eval では TF を
+**CPU 固定・別プロセス**（`colab/xvec_extract.py`）で実行する。
 
 ## ライセンス
 
