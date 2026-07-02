@@ -78,7 +78,7 @@ python train_ms_jp_extra.py  -c Data/cv_r1/config.json -m Data/cv_r1
 train ノート §1.5 で `SMOKE = True` にすると、**専用サブセットバンドル**
 `cadence_cv_r1_smoke_v1.tgz`（発話数上位 30 話者 × train 40 発話 ≒ 1,200 行 + val 60 行、~0.3 GB、
 GitHub Releases 配布）でパイプライン全体を通す。全量 4.81 GiB を落とさないため DL は 1〜2 分。
-既定の batch 8 / 2 epoch ≒ 300 step（100 step ごと保存）で、無料枠の T4 なら**全体 30 分前後**に
+既定の batch 4 / 2 epoch ≒ 600 step（100 step ごと保存。T4 の fp32 実測で batch 8 は OOM）で、無料枠の T4 なら**全体 40 分前後**に
 収まり、環境構築 → bert_gen → style_gen → warm-start 学習 → checkpoint 保存までを検証できる
 （T4 は標準経路 = torch 2.3.1・再起動不要）。
 
