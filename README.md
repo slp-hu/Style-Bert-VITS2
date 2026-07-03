@@ -19,6 +19,7 @@ Common Voice (ja, CC0) 単独で完結する独立モデル。CSJ を持たな�
 | ① 環境セットアップ（fork clone＋底モデル取得。**1回だけ**） | `colab/cv_r1_train_setup_colab.ipynb` | CPU 可 | [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/slp-hu/Style-Bert-VITS2/blob/layer-b-cadence-seq/colab/cv_r1_train_setup_colab.ipynb) |
 | ② データ取得 → bert_gen → style_gen → 学習 | `colab/cv_r1_train_colab.ipynb` | **GPU** | [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/slp-hu/Style-Bert-VITS2/blob/layer-b-cadence-seq/colab/cv_r1_train_colab.ipynb) |
 | ③ 話者評価（弾き分け / UTMOS / virtual 話者） | `colab/cv_r1_eval_speaker.ipynb` | **GPU** | [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/slp-hu/Style-Bert-VITS2/blob/layer-b-cadence-seq/colab/cv_r1_eval_speaker.ipynb) |
+| ④ 合成（学習済みモデルの即時試聴・virtual 話者ミックス） | `colab/cv_r1_synth_colab.ipynb` | **GPU** | [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/slp-hu/Style-Bert-VITS2/blob/layer-b-cadence-seq/colab/cv_r1_synth_colab.ipynb) |
 
 「そのまま使う」なら **無編集で通る**（setup の `FORK_URL` / `BRANCH` / `BASE`、train / eval の
 `DRIVE_BASE` は既定値設定済みで、ノート間で整合している）。変える場合は Colab の
@@ -89,6 +90,7 @@ GitHub Releases 配布）でパイプライン全体を通す。全量 4.81 GiB 
   モデル形状・warm-start の検証としては本番と等価。
 - compute capability < 8.0 の GPU（T4 = 7.5 等）では bf16/fp16 を自動で無効化する（fp32）。
 - 学習品質の評価には使えない（step 数が2桁足りない）。目的は配管の検証のみ。
+- 完走後に声を聴きたいときは ④ 合成ノート（データセット展開不要・数分）。eval ノートはスモークモデルを評価対象にしない。
 - バンドルは `colab/make_smoke_bundle.py` で全量 `Data/cv_r1` から決定的に再生成できる
   （GitHub Releases: tag `cv_r1-smoke-v1` / アセット名 `cadence_cv_r1_smoke_v1.tgz` 固定。
   ノートの取得 URL がこの tag・名前を指しているため変更しないこと）。
@@ -117,7 +119,7 @@ train / eval ノートの §2 は `nvidia-smi` で compute capability を判定�
 
 - **コード（本 fork・`colab/` の Colab ノートを含む）: AGPL-3.0 / LGPL-3.0** — upstream Style-Bert-VITS2 を継承（下の upstream README の LICENSE 節、およびリポジトリの `LICENSE` / `LGPL_LICENSE` を参照）
 - **データ加工物・パイプライン: CC0** — Zenodo レコード（DOI 10.5281/zenodo.21119791）に準拠
-- **学習 ckpt は底モデル（JP-Extra 事前学習モデル）のライセンスに従属** — 底モデル = HF [`litagin/Style-Bert-VITS2-2.0-base-JP-Extra`](https://huggingface.co/litagin/Style-Bert-VITS2-2.0-base-JP-Extra)。公開前に同リポジトリのライセンス表記を確認し、ここに転記すること。
+- **学習済みモデル（ckpt / safetensors）: AGPL-3.0** — 底モデル HF [`litagin/Style-Bert-VITS2-2.0-base-JP-Extra`](https://huggingface.co/litagin/Style-Bert-VITS2-2.0-base-JP-Extra)（License: agpl-3.0。継承元 Stardust-minus/Bert-VITS2-Japanese-Extra も agpl-3.0）の派生物として同一ライセンスで公開する。商用利用・改変可、ただし派生モデルは AGPL-3.0 継承、ネットワークサービスとして提供する場合もソース開示義務（本 fork が公開されているため充足済み）。
 
 <!-- ==================================================================== -->
 <!-- ▲▲▲ fork 追記セクション ここまで／以下は upstream README（無改変）▲▲▲   -->
