@@ -21,11 +21,14 @@ huggingface-cli repo create slp-hu/cadence-cv_r1 --type model   # 作成後 Web 
 huggingface-cli upload slp-hu/cadence-cv_r1 model_assets/model_name . \
   --include "*.safetensors" "config.json" "style_vectors.npy" "trained_speakers.json" "speaker_map.json" "reference_clips/*"
 ```
-（speaker_map.json は任意。無ければデモは emb_g PCA で座標を作る。
- 生成は `pip install umap-learn` → `python demo/make_speaker_map.py`（既定 UMAP・cosine。
- `--method tsne` も可）。eval と同じ環境で 1 回だけ）
+（speaker_map.json / reference_clips は任意。生成は **eval ノート §9 を 1 回実行するだけ**
+ — どちらも `model_assets/` 直下の共有置き場に出力され、Drive に永続する。
+ speaker_map が無ければデモは emb_g PCA、クリップが無ければ元音声プレーヤーが案内表示になる。
+ Hub へは `huggingface-cli upload slp-hu/cadence-cv_r1 model_assets/speaker_map.json speaker_map.json`）
 （reference_clips/ も任意だが推奨: 話者選択に連動して**元話者の声**が聴ける。
- 生成は `python demo/make_reference_clips.py --data Data/cv_r1 --out model_assets/<model>/reference_clips`。
+ 生成は `python demo/make_reference_clips.py --data Data/cv_r1 --out model_assets/reference_clips`
+ — モデル非依存なので **model_assets 直下（共有置き場）**に置けばスモーク/本番の両方から見える。
+ Hub へは `huggingface-cli upload slp-hu/cadence-cv_r1 model_assets/reference_clips reference_clips`。
  全 298 話者で 10〜20 MB 程度・CC0 なので再配布可）
 
 ## 3. Space を作成

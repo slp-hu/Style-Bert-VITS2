@@ -66,7 +66,8 @@ def pca2(mat: np.ndarray) -> np.ndarray:
     y = x @ vt[:2].T
     return y / (np.abs(y).max(0, keepdims=True) + 1e-9)
 
-_map = MODEL_DIR / "speaker_map.json"
+_map = next((d / "speaker_map.json" for d in (MODEL_DIR, MODEL_DIR.parent)
+             if (d / "speaker_map.json").exists()), MODEL_DIR / "speaker_map.json")
 if _map.exists():
     _m = json.load(open(_map, encoding="utf-8"))
     COORD = {s: _m[s] for s in SPEAKERS if s in _m}
@@ -79,7 +80,14 @@ else:
 DF = pd.DataFrame([{"speaker": s, "x": c[0], "y": c[1]} for s, c in COORD.items()])
 
 # ---------------- 元話者の参照クリップ（あれば選択に連動して再生）----------------
-REF_DIR = MODEL_DIR / "reference_clips"
+def _find_ref_dir():
+    """参照クリップはモデル非依存（話者の属性）なので、モデル直下 → 共有置き場の順に探す"""
+    for d in (MODEL_DIR / "reference_clips", MODEL_DIR.parent / "reference_clips"):
+        if (d / "reference_clips.json").exists():
+            return d
+    return MODEL_DIR / "reference_clips"   # 見つからない場合のダミー（REF は空になる）
+
+REF_DIR = _find_ref_dir()
 _refj = REF_DIR / "reference_clips.json"
 REF = json.load(open(_refj, encoding="utf-8")) if _refj.exists() else {}
 
