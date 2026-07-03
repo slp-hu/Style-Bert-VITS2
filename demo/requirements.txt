@@ -1,0 +1,7 @@
+# HF Spaces 用（Colab では demo ノートが個別に入れる）
+# fork（cadence 分岐入り SBV2）を直接インストールする
+git+https://github.com/slp-hu/Style-Bert-VITS2@layer-b-cadence-seq
+gradio>=4.44
+pandas
+numpy<2
+huggingface_hub
