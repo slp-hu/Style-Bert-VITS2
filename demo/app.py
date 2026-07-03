@@ -78,6 +78,22 @@ else:
     MAP_SRC = "emb_g PCA（フォールバック。x-vector map は demo/make_speaker_map.py で生成）"
 DF = pd.DataFrame([{"speaker": s, "x": c[0], "y": c[1]} for s, c in COORD.items()])
 
+# ---------------- 元話者の参照クリップ（あれば選択に連動して再生）----------------
+REF_DIR = MODEL_DIR / "reference_clips"
+_refj = REF_DIR / "reference_clips.json"
+REF = json.load(open(_refj, encoding="utf-8")) if _refj.exists() else {}
+
+def ref_clip(sel):
+    """最後に選んだ話者の元音声とテキストを返す（クリップ集が無い場合は案内のみ）"""
+    if not sel:
+        return None, ""
+    spk = sel[-1]
+    info = REF.get(spk)
+    if not info:
+        return None, (f"（{spk} の元音声サンプルなし" +
+                      ("" if REF else " — reference_clips 未同梱。demo/make_reference_clips.py で生成") + "）")
+    return str(REF_DIR / info["file"]), f"元音声 **{spk}**: 「{info.get('text', '')}」"
+
 # ---------------- 合成コア（eval / synth ノートと同一方式）----------------
 @torch.no_grad()
 def _synth(text: str, spk: str, length_scale: float = 1.0, sdp_ratio: float = 0.2):
@@ -156,9 +172,14 @@ with gr.Blocks(title="cadence cv_r1 demo") as demo:
             text = gr.Textbox(label="テキスト", value="音声合成のテストです。今日はとても良い天気ですね。")
             length = gr.Slider(0.7, 1.5, 1.0, step=0.05, label="話速（length_scale）")
             btn = gr.Button("合成", variant="primary")
-    audio = gr.Audio(label="出力", autoplay=True)
+    with gr.Row():
+        ref_audio = gr.Audio(label="元話者サンプル（最後に選んだ話者）")
+        audio = gr.Audio(label="合成出力", autoplay=True)
+    ref_text = gr.Markdown()
     status = gr.Markdown()
     btn.click(do_synth, [text, sel, wtxt, length], [audio, status])
+    sel.change(ref_clip, [sel], [ref_audio, ref_text])
+    demo.load(ref_clip, [sel], [ref_audio, ref_text])   # 初期表示でも1人目のサンプルを出す
     try:
         plot.select(on_plot_select, [sel], [sel])
     except Exception:

@@ -19,11 +19,14 @@
 huggingface-cli login
 huggingface-cli repo create slp-hu/cadence-cv_r1 --type model   # 作成後 Web で license: agpl-3.0 を設定
 huggingface-cli upload slp-hu/cadence-cv_r1 model_assets/model_name . \
-  --include "*.safetensors" "config.json" "style_vectors.npy" "trained_speakers.json" "speaker_map.json"
+  --include "*.safetensors" "config.json" "style_vectors.npy" "trained_speakers.json" "speaker_map.json" "reference_clips/*"
 ```
 （speaker_map.json は任意。無ければデモは emb_g PCA で座標を作る。
  生成は `pip install umap-learn` → `python demo/make_speaker_map.py`（既定 UMAP・cosine。
  `--method tsne` も可）。eval と同じ環境で 1 回だけ）
+（reference_clips/ も任意だが推奨: 話者選択に連動して**元話者の声**が聴ける。
+ 生成は `python demo/make_reference_clips.py --data Data/cv_r1 --out model_assets/<model>/reference_clips`。
+ 全 298 話者で 10〜20 MB 程度・CC0 なので再配布可）
 
 ## 3. Space を作成
 1. https://huggingface.co/new-space → SDK: **Gradio** / Hardware: CPU basic（無料）で作成
