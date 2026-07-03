@@ -24,6 +24,9 @@ Common Voice (ja, CC0) 単独で完結する独立モデル。CSJ を持たな�
 「そのまま使う」なら **無編集で通る**（setup の `FORK_URL` / `BRANCH` / `BASE`、train / eval の
 `DRIVE_BASE` は既定値設定済みで、ノート間で整合している）。変える場合は Colab の
 「ドライブにコピーを保存」で保存してから編集する。
+各ノートの先頭セルは Drive clone を **自動 `git pull`** して本リポジトリの最新に揃える
+（ノートは常に GitHub の最新が開かれるため、コード側も揃えないと不整合になる）。
+版を意図的に固定したい場合は先頭セルの `AUTO_PULL = False`。
 `colab/` には ③ が使う x-vector 抽出スクリプト `xvec_extract.py` も同梱している。
 
 > **旧 `cv_r1_deploy_colab.ipynb`（Drive へのデータ常設展開）は廃止した。**
