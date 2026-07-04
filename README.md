@@ -20,6 +20,7 @@ Common Voice (ja, CC0) 単独で完結する独立モデル。CSJ を持たな�
 | ② データ取得 → bert_gen → style_gen → 学習 | `colab/cv_r1_train_colab.ipynb` | **GPU** | [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/slp-hu/Style-Bert-VITS2/blob/layer-b-cadence-seq/colab/cv_r1_train_colab.ipynb) |
 | ③ 話者評価（弾き分け / UTMOS / virtual 話者） | `colab/cv_r1_eval_speaker.ipynb` | **GPU** | [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/slp-hu/Style-Bert-VITS2/blob/layer-b-cadence-seq/colab/cv_r1_eval_speaker.ipynb) |
 | ④ 合成（学習済みモデルの即時試聴・virtual 話者ミックス） | `colab/cv_r1_synth_colab.ipynb` | **GPU** | [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/slp-hu/Style-Bert-VITS2/blob/layer-b-cadence-seq/colab/cv_r1_synth_colab.ipynb) |
+| ⑤ インタラクティブデモ（話者マップ + 混合合成の Gradio、share リンク発行） | `colab/cv_r1_demo_colab.ipynb` | **GPU** | [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/slp-hu/Style-Bert-VITS2/blob/layer-b-cadence-seq/colab/cv_r1_demo_colab.ipynb) |
 
 「そのまま使う」なら **無編集で通る**（setup の `FORK_URL` / `BRANCH` / `BASE`、train / eval の
 `DRIVE_BASE` は既定値設定済みで、ノート間で整合している）。変える場合は Colab の
@@ -28,6 +29,10 @@ Common Voice (ja, CC0) 単独で完結する独立モデル。CSJ を持たな�
 （ノートは常に GitHub の最新が開かれるため、コード側も揃えないと不整合になる）。
 版を意図的に固定したい場合は先頭セルの `AUTO_PULL = False`。
 `colab/` には ③ が使う x-vector 抽出スクリプト `xvec_extract.py` も同梱している。
+
+⑤のデモ本体は `demo/app.py`（Colab / HF Spaces 両用）。恒久公開（HF Spaces）の手順と
+モデル重みの Hub 公開は `demo/README_space.md` を参照。デモ用アセット（話者マップ・
+元話者の参照クリップ）は eval ノート §9 で一度生成すれば Drive に永続する。
 
 > **旧 `cv_r1_deploy_colab.ipynb`（Drive へのデータ常設展開）は廃止した。**
 > 現行の train / eval ノートが Zenodo からデータを直接 VM ローカルに展開するため不要になった。
