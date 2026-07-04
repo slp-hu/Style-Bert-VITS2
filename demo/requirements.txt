@@ -2,6 +2,7 @@
 # fork（cadence 分岐入り SBV2）を直接インストールする
 git+https://github.com/slp-hu/Style-Bert-VITS2@layer-b-cadence-seq
 gradio>=4.44
+huggingface_hub<1.0   # transformers 4.x 系と両立させる（1.x に上げない）
 pandas
 numpy<2
 huggingface_hub
