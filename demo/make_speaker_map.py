@@ -37,8 +37,9 @@ def embed2d(mat: np.ndarray, method: str, seed: int = 0) -> tuple[np.ndarray, st
             y = umap.UMAP(n_components=2, n_neighbors=15, min_dist=0.1,
                           metric="cosine", random_state=seed).fit_transform(mat)
             return _norm(np.asarray(y)), "umap"
-        except ImportError:
-            print("★umap-learn 未導入 → t-SNE にフォールバック（pip install umap-learn で解消）")
+        except Exception as e:   # 未導入だけでなく、壊れた依存（例: torch と非互換な torchvision）でも落ちる
+            print(f"★umap を使えない（{type(e).__name__}: {e}）→ t-SNE にフォールバック")
+            print("  （torchvision 起因なら `pip uninstall -y torchvision` で umap が使えるようになる）")
             method = "tsne"
     if method == "tsne":
         try:
@@ -47,8 +48,8 @@ def embed2d(mat: np.ndarray, method: str, seed: int = 0) -> tuple[np.ndarray, st
             y = TSNE(n_components=2, perplexity=perp, metric="cosine",
                      init="pca", random_state=seed).fit_transform(mat)
             return _norm(np.asarray(y)), "tsne"
-        except ImportError:
-            print("★scikit-learn 未導入 → PCA にフォールバック（pip install scikit-learn で解消）")
+        except Exception as e:
+            print(f"★t-SNE を使えない（{type(e).__name__}: {e}）→ PCA にフォールバック")
     x = mat - mat.mean(0, keepdims=True)
     _, _, vt = np.linalg.svd(x, full_matrices=False)
     return _norm(x @ vt[:2].T), "pca"
