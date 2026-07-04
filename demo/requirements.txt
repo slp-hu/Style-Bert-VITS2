@@ -5,5 +5,14 @@ gradio>=4.44
 huggingface_hub<1.0   # transformers 4.x 系と両立させる（1.x に上げない）
 torch==2.3.1          # SBV2 パッケージは torch を依存に含めない（Colab 検証済みの版を明示）
 transformers==4.41.2  # 同上（検証済み固定）
+pydantic==2.10.6      # gradio 4.44 の API スキーマ生成が pydantic 2.11+ と非互換（既知バグ）
+# --- gradio 4.44（2024年秋世代）と同世代の Web スタックに時代固定 ---
+#     最新 starlette は旧 TemplateResponse シグネチャを廃止しており gradio 4.44 が起動不能
+fastapi==0.115.0
+starlette==0.38.6
+jinja2==3.1.4
+uvicorn==0.30.6
 pandas
 numpy<2
+soundfile     # 元音声クリップ（Opus）の読み込み
+matplotlib    # 話者マップの画像描画

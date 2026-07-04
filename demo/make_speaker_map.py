@@ -79,6 +79,17 @@ def main():
     items = {f"{s}__{i}": p for s, ps in per.items() for i, p in enumerate(ps)}
     print(f"話者 {len(per)} / wav {len(items)}（各話者 ≤{a.per_spk}）")
 
+    # --- preflight: xvec_extract が使う TensorFlow が import 可能か（protobuf 版ずれの自己修復）---
+    # Colab の TF 2.20 は protobuf>=5.28 が必要だが、SBV2 環境構築の依存解決が日によって
+    # 古い protobuf を置くことがある（ImportError: cannot import name 'runtime_version'）。
+    pre = subprocess.run([sys.executable, "-c", "import tensorflow"], capture_output=True, text=True)
+    if pre.returncode != 0 and "runtime_version" in (pre.stderr or ""):
+        print("★protobuf が TF に対して古い → protobuf>=5.28 に更新して再試行")
+        subprocess.run([sys.executable, "-m", "pip", "install", "-q", "--upgrade",
+                        "protobuf>=5.28"], check=True)
+        pre = subprocess.run([sys.executable, "-c", "import tensorflow"], capture_output=True, text=True)
+    assert pre.returncode == 0, "★TensorFlow を import できない:\n" + (pre.stderr or "")[-800:]
+
     with tempfile.TemporaryDirectory() as td:
         ij, oz = Path(td) / "items.json", Path(td) / "xvec.npz"
         json.dump(items, open(ij, "w", encoding="utf-8"))
@@ -92,8 +103,11 @@ def main():
     spks = sorted(mean)
     xy, used = embed2d(np.stack([mean[s] for s in spks]), a.method, a.seed)
     out = {s: [round(float(x), 5), round(float(y), 5)] for s, (x, y) in zip(spks, xy)}
+    import time
+    out["_meta"] = {"method": used, "requested": a.method, "per_spk": a.per_spk,
+                    "seed": a.seed, "created": time.strftime("%Y-%m-%dT%H:%M:%S%z")}
     json.dump(out, open(a.out, "w", encoding="utf-8"), ensure_ascii=False, indent=1)
-    print(f"出力: {a.out}（{len(out)} 話者 / 手法 {used}）→ model_assets/<model>/ に置くとデモが使う")
+    print(f"出力: {a.out}（{len(out)-1} 話者 / 手法 {used}）→ model_assets/ に置くとデモが使う")
 
 
 if __name__ == "__main__":

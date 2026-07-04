@@ -18,7 +18,6 @@ import re
 from pathlib import Path
 
 import numpy as np
-import pandas as pd
 import torch
 import gradio as gr
 
@@ -70,14 +69,89 @@ _map = next((d / "speaker_map.json" for d in (MODEL_DIR, MODEL_DIR.parent)
              if (d / "speaker_map.json").exists()), MODEL_DIR / "speaker_map.json")
 if _map.exists():
     _m = json.load(open(_map, encoding="utf-8"))
-    COORD = {s: _m[s] for s in SPEAKERS if s in _m}
-    MAP_SRC = "x-vector PCA（事前計算）"
+    COORD = {s: _m[s] for s in SPEAKERS if s in _m and s != "_meta"}
+    _method = (_m.get("_meta") or {}).get("method")
+    MAP_SRC = (f"x-vector {_method.upper()}（事前計算）" if _method
+               else "x-vector（事前計算・手法記録なし = 旧版ファイル）")
 else:
     emb = net_g.emb_g.weight.data.cpu().float().numpy()
     xy = pca2(np.stack([emb[spk2id[s]] for s in SPEAKERS]))
     COORD = {s: xy[i].tolist() for i, s in enumerate(SPEAKERS)}
     MAP_SRC = "emb_g PCA（フォールバック。x-vector map は demo/make_speaker_map.py で生成）"
-DF = pd.DataFrame([{"speaker": s, "x": c[0], "y": c[1]} for s, c in COORD.items()])
+# ---------------- マップ描画（画像方式）----------------
+# gradio 4.44 の ScatterPlot はクリック選択イベントが実質使えないため、
+# matplotlib でサーバ側描画した画像 + gr.Image のクリック（ピクセル座標）で選択する。
+import matplotlib
+matplotlib.use("Agg")
+import matplotlib.pyplot as plt
+
+_MAP_SPKS = list(COORD.keys())
+_MAP_XY = np.array([COORD[s] for s in _MAP_SPKS], dtype=float)   # (N,2) in [-1,1]
+
+# 話者メタ（任意）: {"cv_0001": "female", ...} または {"cv_0001": {"gender": "female"}, ...}
+_meta_p = next((d / "speaker_meta.json" for d in (MODEL_DIR, MODEL_DIR.parent)
+                if (d / "speaker_meta.json").exists()), None)
+def _norm_gender(v):
+    g = (v.get("gender") if isinstance(v, dict) else v) or ""
+    g = str(g).lower()
+    return "female" if g.startswith(("f", "女")) else "male" if g.startswith(("m", "男")) else "unknown"
+GENDER = ({s: _norm_gender(v) for s, v in json.load(open(_meta_p, encoding="utf-8")).items()}
+          if _meta_p else {})
+G_COLOR = {"female": "#e0705f", "male": "#5b8def", "unknown": "#9aa0a6"}
+G_LABEL = {"female": "female", "male": "male", "unknown": "unknown"}
+
+def _make_fig(selected):
+    sel_set = set(selected or [])
+    fig, ax = plt.subplots(figsize=(6.4, 6.4), dpi=100)
+    if GENDER:
+        for g_key in ("female", "male", "unknown"):
+            idx = [i for i, s in enumerate(_MAP_SPKS) if s not in sel_set
+                   and GENDER.get(s, "unknown") == g_key]
+            if idx:
+                ax.scatter(_MAP_XY[idx, 0], _MAP_XY[idx, 1], s=26, c=G_COLOR[g_key],
+                           alpha=0.85, linewidths=0, label=G_LABEL[g_key])
+        ax.legend(loc="lower right", fontsize=8, framealpha=0.85)
+    else:
+        base = [s not in sel_set for s in _MAP_SPKS]
+        ax.scatter(_MAP_XY[base, 0], _MAP_XY[base, 1], s=26, c="#6e9bd8", alpha=0.85, linewidths=0)
+    for s in sel_set:
+        if s in COORD:
+            x, y = COORD[s]
+            fill = G_COLOR.get(GENDER.get(s, "unknown"), "#e04b3a") if GENDER else "#e04b3a"
+            ax.scatter([x], [y], s=95, c=fill, edgecolors="#c81e1e", linewidths=2.0, zorder=3)
+            ax.annotate(s, (x, y), xytext=(6, 6), textcoords="offset points",
+                        fontsize=9, color="#a12315", zorder=4)
+    ax.set_xlim(-1.12, 1.12); ax.set_ylim(-1.12, 1.12)
+    ax.set_xticks([]); ax.set_yticks([])
+    ax.set_title("click = select nearest speaker / click again = deselect", fontsize=10, color="#555")
+    fig.tight_layout(pad=0.4)
+    return fig, ax
+
+# 各話者のピクセル座標を一度だけ計算（座標は選択状態に依らず固定）
+_f, _a = _make_fig([])
+_f.canvas.draw()
+_W, _H = _f.canvas.get_width_height()
+_disp = _a.transData.transform(_MAP_XY)              # 表示座標（原点は左下）
+SPK_PIX = {s: (float(px), float(_H - py)) for s, (px, py) in zip(_MAP_SPKS, _disp)}  # 画像座標（原点左上）
+plt.close(_f)
+
+def render_map(selected):
+    fig, _ = _make_fig(selected)
+    fig.canvas.draw()
+    w, h = fig.canvas.get_width_height()
+    img = np.frombuffer(fig.canvas.buffer_rgba(), dtype=np.uint8).reshape(h, w, 4)[:, :, :3].copy()
+    plt.close(fig)
+    return img
+
+CLICK_RADIUS_PX = 16
+
+def nearest_speaker(x, y):
+    best, bd = None, 1e18
+    for s, (px, py) in SPK_PIX.items():
+        d = (px - x) ** 2 + (py - y) ** 2
+        if d < bd:
+            best, bd = s, d
+    return best if bd <= CLICK_RADIUS_PX ** 2 else None
 
 # ---------------- 元話者の参照クリップ（あれば選択に連動して再生）----------------
 def _find_ref_dir():
@@ -91,23 +165,35 @@ REF_DIR = _find_ref_dir()
 _refj = REF_DIR / "reference_clips.json"
 REF = json.load(open(_refj, encoding="utf-8")) if _refj.exists() else {}
 
-def ref_clip(sel):
-    """最後に選んだ話者の元音声とテキストを返す（クリップ集が無い場合は案内のみ）。
-    Gradio はアプリルート外のファイルパス配信をブロックするため（クリップは Drive 上）、
-    パスではなく音声データ (sr, ndarray) を直接返す。"""
-    if not sel:
-        return None, ""
-    spk = sel[-1]
+MAX_REF = 4   # 同時表示する元音声プレーヤー数
+
+def _one_clip(spk):
+    """1話者分の (audio, キャプション)。無ければ (None, 理由)"""
     info = REF.get(spk)
     if not info:
-        return None, (f"（{spk} の元音声サンプルなし" +
-                      ("" if REF else " — reference_clips 未同梱。demo/make_reference_clips.py で生成") + "）")
+        return None, (f"{spk}: 元音声サンプルなし" +
+                      ("" if REF else "（reference_clips 未同梱）"))
     try:
         import soundfile as sf
         data, sr = sf.read(str(REF_DIR / info["file"]), dtype="float32")
-        return (sr, data), f"元音声 **{spk}**: 「{info.get('text', '')}」"
+        return (sr, data), f"{spk}: 「{info.get('text', '')}」"
     except Exception as e:
-        return None, f"（{spk} の元音声を読めない: {type(e).__name__}: {e}）"
+        return None, f"{spk}: 読み込み失敗（{type(e).__name__}: {e}）"
+
+def ref_updates(sel):
+    """選択中の全話者（先頭 MAX_REF 名）の元音声プレーヤー更新 + キャプション md を返す"""
+    sel = list(sel or [])
+    updates, lines = [], []
+    for i in range(MAX_REF):
+        if i < len(sel):
+            audio, cap = _one_clip(sel[i])
+            updates.append(gr.update(value=audio, label=f"元音声 {sel[i]}", visible=True))
+            lines.append("- " + cap)
+        else:
+            updates.append(gr.update(value=None, visible=False))
+    if len(sel) > MAX_REF:
+        lines.append(f"（選択 {len(sel)} 名のうち先頭 {MAX_REF} 名のみ表示）")
+    return updates, "\n".join(lines)
 
 # ---------------- 合成コア（eval / synth ノートと同一方式）----------------
 @torch.no_grad()
@@ -158,15 +244,6 @@ def do_synth(text, sel, wtxt, length_scale):
     label = " + ".join(f"{s}×{w:g}" for s, w in zip(sel, ws)) if len(sel) > 1 else sel[0]
     return (SR, wav), f"合成: {label}"
 
-def on_plot_select(evt: gr.SelectData, sel):
-    """マップ上の点クリックで話者を選択に追加/除去（対応していない環境では無視される）"""
-    try:
-        row = DF.iloc[evt.index] if isinstance(evt.index, (int, np.integer)) else DF.iloc[evt.index[0]]
-        spk = str(row["speaker"])
-    except Exception:
-        return sel
-    sel = list(sel or [])
-    return [s for s in sel if s != spk] if spk in sel else sel + [spk]
 
 # ---------------- UI ----------------
 with gr.Blocks(title="cadence cv_r1 demo") as demo:
@@ -178,8 +255,8 @@ with gr.Blocks(title="cadence cv_r1 demo") as demo:
         "virtual 話者で合成します。")
     with gr.Row():
         with gr.Column(scale=3):
-            plot = gr.ScatterPlot(DF, x="x", y="y", tooltip=["speaker"],
-                                  height=420, label="学習話者マップ")
+            map_img = gr.Image(value=render_map([SPEAKERS[0]]), interactive=False,
+                               sources=[], show_download_button=False, label="学習話者マップ")
         with gr.Column(scale=2):
             sel = gr.Dropdown(choices=SPEAKERS, multiselect=True,
                               value=[SPEAKERS[0]], label="話者（複数選択で混合）")
@@ -187,18 +264,31 @@ with gr.Blocks(title="cadence cv_r1 demo") as demo:
             text = gr.Textbox(label="テキスト", value="音声合成のテストです。今日はとても良い天気ですね。")
             length = gr.Slider(0.7, 1.5, 1.0, step=0.05, label="話速（length_scale）")
             btn = gr.Button("合成", variant="primary")
+    gr.Markdown("#### 元話者サンプル（選択中の話者）")
     with gr.Row():
-        ref_audio = gr.Audio(label="元話者サンプル（最後に選んだ話者）")
-        audio = gr.Audio(label="合成出力", autoplay=True)
+        ref_audios = [gr.Audio(visible=(i == 0), label="元音声") for i in range(MAX_REF)]
     ref_text = gr.Markdown()
+    audio = gr.Audio(label="合成出力", autoplay=True)
     status = gr.Markdown()
+    def on_sel_change(sel_v):
+        ups, t = ref_updates(sel_v)
+        return [render_map(sel_v), *ups, t]
+
+    def on_map_click(evt: gr.SelectData, sel_v):
+        try:
+            x, y = float(evt.index[0]), float(evt.index[1])
+        except Exception:
+            return sel_v
+        spk = nearest_speaker(x, y)
+        if spk is None:
+            return sel_v
+        sel_v = list(sel_v or [])
+        return [s for s in sel_v if s != spk] if spk in sel_v else sel_v + [spk]
+
     btn.click(do_synth, [text, sel, wtxt, length], [audio, status])
-    sel.change(ref_clip, [sel], [ref_audio, ref_text])
-    demo.load(ref_clip, [sel], [ref_audio, ref_text])   # 初期表示でも1人目のサンプルを出す
-    try:
-        plot.select(on_plot_select, [sel], [sel])
-    except Exception:
-        pass  # 古い gradio では点クリック非対応 → ドロップダウンのみで運用
+    sel.change(on_sel_change, [sel], [map_img, *ref_audios, ref_text])
+    demo.load(on_sel_change, [sel], [map_img, *ref_audios, ref_text])   # 初期表示から反映
+    map_img.select(on_map_click, [sel], [sel])   # クリック → 選択トグル →（sel.change 経由で）再描画
 
 if __name__ == "__main__":
     demo.launch(server_name="0.0.0.0" if os.environ.get("SPACE_ID") else None)
