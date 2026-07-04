@@ -3,6 +3,7 @@
 git+https://github.com/slp-hu/Style-Bert-VITS2@layer-b-cadence-seq
 gradio>=4.44
 huggingface_hub<1.0   # transformers 4.x 系と両立させる（1.x に上げない）
+torch==2.3.1          # SBV2 パッケージは torch を依存に含めない（Colab 検証済みの版を明示）
+transformers==4.41.2  # 同上（検証済み固定）
 pandas
 numpy<2
-huggingface_hub
