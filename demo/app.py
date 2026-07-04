@@ -92,7 +92,9 @@ _refj = REF_DIR / "reference_clips.json"
 REF = json.load(open(_refj, encoding="utf-8")) if _refj.exists() else {}
 
 def ref_clip(sel):
-    """最後に選んだ話者の元音声とテキストを返す（クリップ集が無い場合は案内のみ）"""
+    """最後に選んだ話者の元音声とテキストを返す（クリップ集が無い場合は案内のみ）。
+    Gradio はアプリルート外のファイルパス配信をブロックするため（クリップは Drive 上）、
+    パスではなく音声データ (sr, ndarray) を直接返す。"""
     if not sel:
         return None, ""
     spk = sel[-1]
@@ -100,7 +102,12 @@ def ref_clip(sel):
     if not info:
         return None, (f"（{spk} の元音声サンプルなし" +
                       ("" if REF else " — reference_clips 未同梱。demo/make_reference_clips.py で生成") + "）")
-    return str(REF_DIR / info["file"]), f"元音声 **{spk}**: 「{info.get('text', '')}」"
+    try:
+        import soundfile as sf
+        data, sr = sf.read(str(REF_DIR / info["file"]), dtype="float32")
+        return (sr, data), f"元音声 **{spk}**: 「{info.get('text', '')}」"
+    except Exception as e:
+        return None, f"（{spk} の元音声を読めない: {type(e).__name__}: {e}）"
 
 # ---------------- 合成コア（eval / synth ノートと同一方式）----------------
 @torch.no_grad()
