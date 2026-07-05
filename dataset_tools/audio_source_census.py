@@ -9,14 +9,11 @@
 レート誤ラベル（早口化）を物理量として直接検出する（日本語朗読は概ね 7〜9 mora/s。
 12 超・3 未満を旗立て）。あわせて
   (2) 帯域クラス: wav 実体のスペクトル遮断周波数（話者ごとサンプリング）
-  (3) 性別ラベル × F0 の矛盾: 話者の F0 中央値が申告性別の典型帯と強く矛盾する話者を旗立て
-      （一貫して別性の声のアカウント = cv_0028/cv_0127 型のラベル異常。純度検査では
-       「話者内が一貫」なため検出できない相補的チェック）
-  (4) トリム比: 参考情報として出力のみ
+  (3) トリム比: 参考情報として出力のみ
 を集計する。Mac（パイプライン出力ツリー + CV 原本がある環境）での実行を想定。
 
 使い方:
-    python dataset_tools/audio_source_census.py --manifest <work>/audio_manifest_cv.csv \\
+    python audio_source_census.py --manifest <work>/audio_manifest_cv.csv \\
         --durations <cv-corpus-*>/ja/clip_durations.tsv \\
         --wavroot <out>/sbv2_data/cv_r1/wavs [--sample-per-spk 2] [--out census.tsv]
 """
@@ -26,27 +23,6 @@ import csv
 from pathlib import Path
 
 import numpy as np
-
-
-def f0_median_hz(path, max_sec=5.0):
-    """クリップ先頭 max_sec の F0 中央値（Hz）。無声なら None"""
-    import soundfile as sf
-    y, sr = sf.read(str(path), dtype="float32")
-    if y.ndim > 1:
-        y = y.mean(axis=1)
-    y = y[: int(max_sec * sr)]
-    try:
-        import pyworld
-        _f0, t = pyworld.dio(y.astype(np.float64), sr, f0_floor=60, f0_ceil=500)
-        f0 = pyworld.stonemask(y.astype(np.float64), _f0, t, sr)
-    except Exception:
-        try:
-            import librosa
-            f0 = librosa.yin(y, fmin=60, fmax=500, sr=sr)
-        except Exception:
-            return None
-    v = f0[(f0 > 60) & (f0 < 500)]
-    return float(np.median(v)) if v.size >= 10 else None
 
 
 _SMALL = set("ゃゅょぁぃぅぇぉャュョァィゥェォヮゎ")
@@ -140,13 +116,8 @@ def main():
     for spk, uid, *_ in matched:
         if len(per[spk]) < a.sample_per_spk:
             per[spk].append(uid)
-    sex_of = {}
-    with open(a.manifest, encoding="utf-8", newline="") as fh:
-        for r in csv.DictReader(fh):
-            sex_of.setdefault(r.get("spk", "?"), (r.get("sex") or "").lower())
     cls = collections.Counter()
     detail = []
-    spk_f0 = collections.defaultdict(list)
     for spk, uids in sorted(per.items()):
         for uid in uids:
             p = Path(a.wavroot) / f"{uid}.wav"
@@ -156,25 +127,9 @@ def main():
             c = band_class(hz)
             cls[c] += 1
             detail.append((spk, uid, hz, c))
-            f0 = f0_median_hz(p)
-            if f0:
-                spk_f0[spk].append(f0)
     print("\n== 帯域クラス分布（話者ごと最大", a.sample_per_spk, "本サンプル）==")
     for c, n in cls.most_common():
         print(f"  {c}: {n}")
-
-    # --- 性別ラベル × F0 の矛盾（保守的閾値: 強い矛盾のみ旗立て）---
-    conflicts = []
-    for spk, f0s in sorted(spk_f0.items()):
-        f0m = float(np.median(f0s))
-        sex = sex_of.get(spk, "")
-        if sex.startswith("f") and f0m < 140:
-            conflicts.append((spk, sex, f0m, "female ラベル × 低 F0（男声疑い）"))
-        elif sex.startswith("m") and f0m > 195:
-            conflicts.append((spk, sex, f0m, "male ラベル × 高 F0（女声疑い）"))
-    print(f"\n== 性別ラベル × F0 矛盾: {len(conflicts)} 名 ==")
-    for spk, sex, f0m, why in conflicts:
-        print(f"  {spk}  label={sex}  F0中央値={f0m:.0f}Hz  {why}")
 
     with open(a.out, "w", encoding="utf-8") as f:
         f.write("spk\tuid\torig_s\ttrim_s\tratio\tmora\tmora_per_s\tcutoff_hz\tband\n")
