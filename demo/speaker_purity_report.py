@@ -32,10 +32,17 @@ def main():
     ap.add_argument("--per-spk", type=int, default=8)
     ap.add_argument("--drive", default="/content/drive/MyDrive", help="xvec モデルのキャッシュ先")
     ap.add_argument("--min-sec", type=float, default=1.0, help="短すぎるクリップは x-vector が不安定")
+    ap.add_argument("--cmn", choices=["none", "utt"], default="none",
+                    help="xvec_extract に渡す CMN（utt はチャネル耐性の A/B 用）")
     a = ap.parse_args()
 
     data = Path(a.data)
+    assert (data / "esd_train.list").exists(), (
+        f"★esd が無い: {data}\n"
+        "  データは VM ローカル（/content/Style-Bert-VITS2/Data/cv_r1、eval §0 が配置）にある。\n"
+        "  Drive clone 直下ではなく `cd /content/Style-Bert-VITS2` してから実行する")
     per = collections.defaultdict(list)
+    skipped = 0
     for name in ("esd_train.list", "esd_val.list"):
         f = data / name
         if not f.exists():
@@ -44,8 +51,15 @@ def main():
             c = line.rstrip("\n").split("|")
             rel = c[0].split("Data/cv_r1/", 1)[1] if "Data/cv_r1/" in c[0] else c[0]
             p = data / rel
-            if p.exists() and len(per[c[1]]) < a.per_spk:
+            try:
+                ok = p.exists()
+            except OSError:   # Drive FUSE 等の stat 不調はそのファイルだけ飛ばす
+                skipped += 1
+                continue
+            if ok and len(per[c[1]]) < a.per_spk:
                 per[c[1]].append(p)
+    if skipped:
+        print(f"★stat 失敗で {skipped} 件スキップ（Drive FUSE 上で実行していないか確認）")
     items = [(f"{spk}::{p.name}", str(p)) for spk, ps in per.items() for p in ps]
     print(f"話者 {len(per)} / クリップ {len(items)}（各話者 ≤{a.per_spk}）")
 
@@ -62,7 +76,8 @@ def main():
         ij, oz = Path(td) / "items.json", Path(td) / "xvec.npz"
         json.dump(dict(items), open(ij, "w", encoding="utf-8"))
         r = subprocess.run([sys.executable, "xvec_extract.py",
-                            "--items", str(ij), "--out", str(oz), "--drive", a.drive])
+                            "--items", str(ij), "--out", str(oz), "--drive", a.drive,
+                            "--cmn", a.cmn])
         assert r.returncode == 0, "★xvec_extract.py 失敗"
         xv = np.load(oz)
 
