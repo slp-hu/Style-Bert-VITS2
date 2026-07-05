@@ -260,7 +260,8 @@ with gr.Blocks(title="cadence cv_r1 demo") as demo:
         with gr.Column(scale=2):
             sel = gr.Dropdown(choices=SPEAKERS, multiselect=True,
                               value=[SPEAKERS[0]], label="話者（複数選択で混合）")
-            wtxt = gr.Textbox(label="混合比（カンマ区切り。空欄 = 等分）", placeholder="0.7, 0.3")
+            wtxt = gr.Textbox(label="混合比（カンマ区切り・合計は自動正規化。話者を選び直すと等分にリセット）",
+                              value="1")
             text = gr.Textbox(label="テキスト", value="音声合成のテストです。今日はとても良い天気ですね。")
             length = gr.Slider(0.7, 1.5, 1.0, step=0.05, label="話速（length_scale）")
             btn = gr.Button("合成", variant="primary")
@@ -272,7 +273,8 @@ with gr.Blocks(title="cadence cv_r1 demo") as demo:
     status = gr.Markdown()
     def on_sel_change(sel_v):
         ups, t = ref_updates(sel_v)
-        return [render_map(sel_v), *ups, t]
+        eq = ", ".join(["1"] * max(1, len(sel_v or [])))   # 人数分の等分値を実値として見せる
+        return [render_map(sel_v), *ups, t, eq]
 
     def on_map_click(evt: gr.SelectData, sel_v):
         try:
@@ -286,8 +288,8 @@ with gr.Blocks(title="cadence cv_r1 demo") as demo:
         return [s for s in sel_v if s != spk] if spk in sel_v else sel_v + [spk]
 
     btn.click(do_synth, [text, sel, wtxt, length], [audio, status])
-    sel.change(on_sel_change, [sel], [map_img, *ref_audios, ref_text])
-    demo.load(on_sel_change, [sel], [map_img, *ref_audios, ref_text])   # 初期表示から反映
+    sel.change(on_sel_change, [sel], [map_img, *ref_audios, ref_text, wtxt])
+    demo.load(on_sel_change, [sel], [map_img, *ref_audios, ref_text, wtxt])   # 初期表示から反映
     map_img.select(on_map_click, [sel], [sel])   # クリック → 選択トグル →（sel.change 経由で）再描画
 
 if __name__ == "__main__":
