@@ -34,6 +34,10 @@ def parse_args():
     ap.add_argument("--out",   required=True, help="出力 npz")
     ap.add_argument("--drive", default="/content/drive/MyDrive", help="モデル/LDA 保存先の親")
     ap.add_argument("--batch", type=int, default=64)
+    ap.add_argument("--cmn", choices=["none", "utt"], default="none",
+                    help="ケプストラム平均正規化。none=学習時と同一（07d互換・既定）/ "
+                         "utt=発話単位CMN（チャネル耐性。ただしモデルはCMNなしで学習されており"
+                         "特徴量不一致のリスクがある — 用途側でA/B検証すること）")
     return ap.parse_args()
 
 # ---- 信号処理パラメータ（07d/chap10 と一致。変更しない）----
@@ -106,7 +110,8 @@ def main():
             except Exception: pass
         return wf.astype(np.float32)
 
-    def get_mfcc(wf):
+    def get_mfcc(wf, cmn="none"):
+        orig_len = int(min(len(wf), MAXLEN))   # パディング前の有効長（CMN の平均推定範囲）
         w = tf.cast(wf, tf.float32); n = tf.shape(w)[0]
         w = tf.cond(n < MAXLEN,
                     lambda: tf.concat([w, tf.zeros([MAXLEN-n], tf.float32)], 0),
@@ -114,9 +119,15 @@ def main():
         spec = tf.signal.stft(w, frame_length=FRAME_LEN, frame_step=FRAME_STEP)
         mel  = tf.matmul(tf.square(tf.abs(spec)), _mel_fb)
         logmel = tf.math.log(mel + 1e-6)
-        return tf.signal.mfccs_from_log_mel_spectrograms(logmel)[..., :N_MFCC].numpy()
+        m = tf.signal.mfccs_from_log_mel_spectrograms(logmel)[..., :N_MFCC].numpy()
+        if cmn == "utt":
+            # 有効フレーム（ゼロ詰め前の音声区間）だけから平均を推定して全体から引く
+            nf = max(1, 1 + (orig_len - FRAME_LEN) // FRAME_STEP)
+            nf = min(nf, m.shape[0])
+            m = m - m[:nf].mean(axis=0, keepdims=True)
+        return m
 
-    def wav_to_mfcc(p): return get_mfcc(apply_vad(load_wav_16k(p)))
+    def wav_to_mfcc(p): return get_mfcc(apply_vad(load_wav_16k(p)), cmn=args.cmn)
 
     new_model = models.load_model(keras_model, custom_objects={"StatPool1D": StatPool1D})
     xvecsModel = models.Model(inputs=new_model.inputs,
