@@ -1,0 +1,41 @@
+{
+ "created": "2026-07-05T05:56:35",
+ "n": 27,
+ "counts": {
+  "shared": 8,
+  "unsure": 11,
+  "single": 7,
+  "shared(intruder)": 1
+ },
+ "verdicts": {
+  "cv_0127": "shared",
+  "cv_0258": "shared",
+  "cv_0075": "shared",
+  "cv_0279": "shared",
+  "cv_0078": "shared",
+  "cv_0095": "shared",
+  "cv_0289": "unsure",
+  "cv_0155": "unsure",
+  "cv_0216": "unsure",
+  "cv_0039": "single",
+  "cv_0105": "single",
+  "cv_0019": "shared",
+  "cv_0282": "single",
+  "cv_0236": "single",
+  "cv_0094": "single",
+  "cv_0138": "unsure",
+  "cv_0190": "unsure",
+  "cv_0146": "unsure",
+  "cv_0239": "unsure",
+  "cv_0025": "shared",
+  "cv_0091": "unsure",
+  "cv_0218": "unsure",
+  "cv_0228": "single",
+  "cv_0059": "unsure",
+  "cv_0198": "unsure",
+  "cv_0028": "shared(intruder)",
+  "cv_0248": "single"
+ },
+ "updated": "2026-07-08",
+ "note": "cv_0028=shared(intruder): 7:1 混合(across_cos -0.107, dF0 10.4st)。cv_0248: 境界例(dF0 3.3st)だが聴取で single。"
+}
