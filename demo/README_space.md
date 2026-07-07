@@ -27,6 +27,10 @@ huggingface-cli upload slp-hu/cadence-cv_r1 model_assets/model_name . \
  Hub へは `huggingface-cli upload slp-hu/cadence-cv_r1 model_assets/speaker_map.json speaker_map.json`）
 （reference_clips/ も任意だが推奨: 話者選択に連動して**元話者の声**が聴ける。
  生成は `python demo/make_reference_clips.py --data Data/cv_r1 --out model_assets/reference_clips`
+※ reference_clips のうち `cv_0007` のみ手動選定(候補クリップに端クリック
+ノイズがあったため)。`common_voice_ja_39875509` を先頭・末尾 50ms トリム+
+フェード、`loudnorm=I=-18:TP=-1.5` で正規化して同梱。他の 297 話者は無加工
+(Opus 圧縮のみ)。
  — モデル非依存なので **model_assets 直下（共有置き場）**に置けばスモーク/本番の両方から見える。
  Hub へは `huggingface-cli upload slp-hu/cadence-cv_r1 model_assets/reference_clips reference_clips`。
  全 298 話者で 10〜20 MB 程度・CC0 なので再配布可）
