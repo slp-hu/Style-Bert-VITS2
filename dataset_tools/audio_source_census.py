@@ -15,11 +15,18 @@
 使い方:
     python audio_source_census.py --manifest <work>/audio_manifest_cv.csv \\
         --durations <cv-corpus-*>/ja/clip_durations.tsv \\
-        --wavroot <out>/sbv2_data/cv_r1/wavs [--sample-per-spk 2] [--out census.tsv]
+        --wavroot <out>/sbv2_data/cv_r1/wavs [--sample-per-spk 2] [--out census.tsv] \\
+        [--mora-jsonl <work>/cadence_mora.jsonl]
+
+モーラ数のソースは manifest の kana 列を優先し、空なら --mora-jsonl（utt → len(moras)）に
+フォールバックする。CV の manifest は kana 列が全行空（CSJ 用の列）なので --mora-jsonl が実質必須。
+jsonl 由来のモーラ数はポーズ除外の実発話モーラだが、分母はクリップ長のままなので
+旗立て閾値（>12 / <3 mora/s）の較正は kana 方式と同じ。
 """
 import argparse
 import collections
 import csv
+import json
 from pathlib import Path
 
 import numpy as np
@@ -66,6 +73,8 @@ def main():
     ap.add_argument("--durations", required=True, help="CV の clip_durations.tsv")
     ap.add_argument("--wavroot", required=True, help="変換済み wav のディレクトリ")
     ap.add_argument("--sample-per-spk", type=int, default=2, help="帯域測定の話者あたり本数")
+    ap.add_argument("--mora-jsonl", default=None,
+                    help="cadence_mora.jsonl（kana 列が空の場合のモーラ数ソース）")
     ap.add_argument("--out", default="census.tsv")
     a = ap.parse_args()
 
@@ -78,6 +87,21 @@ def main():
         for r in rd:
             orig[Path(r[kcol]).stem] = float(r[vcol]) / 1000.0
 
+    # モーラ数フォールバック（--mora-jsonl: utt → len(moras)）
+    mora_n = {}
+    if a.mora_jsonl:
+        with open(a.mora_jsonl, encoding="utf-8") as fh:
+            for line in fh:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    j = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                mora_n[j.get("utt", "")] = len(j.get("moras") or [])
+        print(f"mora-jsonl: {len(mora_n)} 発話")
+
     # manifest: uid / spk / dur
     rows = []
     with open(a.manifest, encoding="utf-8", newline="") as fh:
@@ -86,7 +110,7 @@ def main():
             uid = Path(r.get("uid") or r.get("wav", "")).stem
             spk, dur = r.get("spk", "?"), float(r.get("dur", 0) or 0)
             kana = r.get("kana") or ""
-            nm = mora_count(kana) if kana else 0
+            nm = mora_count(kana) if kana else mora_n.get(uid, 0)
             rate = (nm / dur) if (nm and dur > 0) else None
             o = orig.get(uid)
             rows.append((spk, uid, dur, o, (dur / o) if o else None, nm, rate))
@@ -96,9 +120,12 @@ def main():
     # --- (1) 話速（主指標。レート誤ラベル = 早口/遅すぎ を直接検出）---
     rated = [r for r in rows if r[6] is not None]
     rates = np.array([r[6] for r in rated])
-    print(f"\n== 話速（モーラ/秒）の分布（kana あり {len(rated)} 本）==")
-    for q in (0.001, 0.01, 0.05, 0.50, 0.95, 0.99, 0.999):
-        print(f"  p{q*100:>5.1f}: {np.quantile(rates, q):.2f}")
+    print(f"\n== 話速（モーラ/秒）の分布（モーラ数あり {len(rated)} 本）==")
+    if len(rates) == 0:
+        print("  ★0 本 — kana 列が空で --mora-jsonl も未指定/不一致。話速の集計をスキップ")
+    else:
+        for q in (0.001, 0.01, 0.05, 0.50, 0.95, 0.99, 0.999):
+            print(f"  p{q*100:>5.1f}: {np.quantile(rates, q):.2f}")
     fast = sorted((r for r in rated if r[6] > 12.0), key=lambda r: -r[6])
     slow = sorted((r for r in rated if r[6] < 3.0), key=lambda r: r[6])
     print(f"  旗立て: 早口（>12 mora/s）{len(fast)} 本 / 遅すぎ（<3 mora/s）{len(slow)} 本")
