@@ -7,4 +7,8 @@
   27 名 = shared 8 / shared(intruder) 1（`cv_0028`）/ single 7 / unsure 11。
   正本は Drive（`MyDrive/Style-Bert-VITS2/purity_audit_verdicts.json`）。更新時は両方に反映すること。
 
-解釈・制約はデータシート `docs/DATASET_cv_r1.md` §6 を参照。
+- `census.tsv` — 全数 census（`dataset_tools/audio_source_census.py --mora-jsonl`、2026-07-08）。
+  18,015 クリップの話速（mora_per_s。モーラ数は cadence_mora.jsonl 由来、11,011 発話）と
+  帯域実測（話者ごと 2 本、cutoff_hz / band 列）。
+
+解釈・制約はデータシート `docs/DATASET_cv_r1.md` §2・§6 を参照。
