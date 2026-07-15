@@ -1,28 +1,36 @@
-<!-- ==================================================================== -->
-<!-- ▼▼▼ fork 追記セクション（cadence cv_r1）ここから ▼▼▼                    -->
-<!-- このコメントから下・番兵コメントまでが fork による追記。               -->
-<!-- 番兵コメント以降の「# Style-Bert-VITS2」節は upstream の原文（無改変）。 -->
-<!-- ==================================================================== -->
-
-# cadence CV-298 (`cv_r1`) — 声道リズム仮名化 CV サブトラック
+# cadence — 声道リズム仮名化（CV / CSJ 両対応の学習ツール）
 
 > このセクションは fork（`slp-hu/Style-Bert-VITS2`, branch `layer-b-cadence-seq`）による追記です。
 > オリジナルの Style-Bert-VITS2 README は下の区切り線以下にそのまま残しています。
 
-Common Voice (ja, CC0) 単独で完結する独立モデル。CSJ を持たない第三者もゼロから再現・学習できる。
-学習コードはこの fork（branch `layer-b-cadence-seq`）、配布データセットは Zenodo（下記 DOI）。
+**学習バンドル（tar）1 本を入力に、Colab で bert_gen → style_gen → 学習まで通す。**
+コーパスは学習ノート §1.2 の `CORPUS` で切り替える。バンドルの仕様は
+[`docs/TRAIN_BUNDLE_SPEC.md`](docs/TRAIN_BUNDLE_SPEC.md) — これを満たす tar を作れば、
+ノートは無改修で新コーパスを受ける。
+
+| `CORPUS` | データ | 取得 | 学習済み重み |
+|---|---|---|---|
+| **`cv_r1`**（既定） | Common Voice ja（CC0）298 話者 | **Zenodo から自動 DL**（DOI 10.5281/zenodo.21119791） | AGPL-3.0 で公開可 |
+| **`csj_r1`** | CSJ 日本語話し言葉コーパス（**各自でライセンス取得**） | **自動 DL しない。** 各自が作った tar を `DRIVE_BASE/corpus_in/csj_r1.tar.gz` へ | **★公開不可**（NINJAL 事前確認が必要） |
+
+`cv_r1` は CSJ を持たない第三者もゼロから再現・学習できる完全公開トラック。
+`csj_r1` は CSJ 現物を持つ人が**同じツール・同じ手順**で回すためのトラックで、
+リポジトリには CSJ 由来物（音声・書き起こし・XML 抜粋・転写入り filelist）を一切置かない。
 
 ## Colab で実行
 
 | 手順 | ノート | ランタイム | Colab |
 |---|---|---|---|
-| ① 環境セットアップ（fork clone＋底モデル取得。**1回だけ**） | `colab/cv_r1_train_setup_colab.ipynb` | CPU 可 | [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/slp-hu/Style-Bert-VITS2/blob/layer-b-cadence-seq/colab/cv_r1_train_setup_colab.ipynb) |
-| ② データ取得 → bert_gen → style_gen → 学習 | `colab/cv_r1_train_colab.ipynb` | **GPU** | [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/slp-hu/Style-Bert-VITS2/blob/layer-b-cadence-seq/colab/cv_r1_train_colab.ipynb) |
+| ① 環境セットアップ（fork clone＋底モデル取得。**1回だけ**・コーパス非依存） | `colab/cadence_train_setup_colab.ipynb` | CPU 可 | [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/slp-hu/Style-Bert-VITS2/blob/layer-b-cadence-seq/colab/cadence_train_setup_colab.ipynb) |
+| ② データ取得 → bert_gen → style_gen → 学習（**CV / CSJ 両対応**） | `colab/cadence_train_colab.ipynb` | **GPU** | [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/slp-hu/Style-Bert-VITS2/blob/layer-b-cadence-seq/colab/cadence_train_colab.ipynb) |
 | ③ 話者評価（弾き分け / UTMOS / virtual 話者） | `colab/cv_r1_eval_speaker.ipynb` | **GPU** | [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/slp-hu/Style-Bert-VITS2/blob/layer-b-cadence-seq/colab/cv_r1_eval_speaker.ipynb) |
 | ④ 合成（学習済みモデルの即時試聴・virtual 話者ミックス） | `colab/cv_r1_synth_colab.ipynb` | **GPU** | [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/slp-hu/Style-Bert-VITS2/blob/layer-b-cadence-seq/colab/cv_r1_synth_colab.ipynb) |
 | ⑤ インタラクティブデモ（話者マップ + 混合合成の Gradio、share リンク発行） | `colab/cv_r1_demo_colab.ipynb` | **GPU** | [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/slp-hu/Style-Bert-VITS2/blob/layer-b-cadence-seq/colab/cv_r1_demo_colab.ipynb) |
 
-「そのまま使う」なら **無編集で通る**（setup の `FORK_URL` / `BRANCH` / `BASE`、train / eval の
+> **③〜⑤ はまだ `cv_r1` 固定**（`CORPUS` 対応は ①② のみ完了）。CSJ で評価・合成する場合は
+> 現状ノート内の `cv_r1` を読み替える必要がある。
+
+「そのまま使う」なら **無編集で通る**（setup の `FORK_URL` / `BRANCH` / `BASE`、学習ノートの
 `DRIVE_BASE` は既定値設定済みで、ノート間で整合している）。変える場合は Colab の
 「ドライブにコピーを保存」で保存してから編集する。
 各ノートの先頭セルは Drive clone を **自動 `git pull`** して本リポジトリの最新に揃える
@@ -31,77 +39,109 @@ Common Voice (ja, CC0) 単独で完結する独立モデル。CSJ を持たな�
 `colab/` には ③ が使う x-vector 抽出スクリプト `xvec_extract.py` も同梱している。
 
 ⑤のデモ本体は `demo/app.py`（Colab / HF Spaces 両用）。恒久公開（HF Spaces）の手順と
-モデル重みの Hub 公開は `demo/README_space.md` を参照。デモ用アセット（話者マップ・
-元話者の参照クリップ）は eval ノート §9 で一度生成すれば Drive に永続する。
+モデル重みの Hub 公開は `demo/README_space.md` を参照。
 
-> **旧 `cv_r1_deploy_colab.ipynb`（Drive へのデータ常設展開）は廃止した。**
-> 現行の train / eval ノートが Zenodo からデータを直接 VM ローカルに展開するため不要になった。
+## コーパスの切り替え
 
-## データセット（配布バンドル）
+学習ノート §1.2 の 1 行だけ:
+
+```python
+CORPUS = "cv_r1"     # "cv_r1" | "csj_r1"
+```
+
+- `Data/{CORPUS}/`・`model_assets/{CORPUS}/`・`Data/{CORPUS}/models/` がコーパス名で分かれるので、
+  取り違えは起きない（`emb_g` の話者数が違うため、混ざれば即座に落ちる）
+- **話者数・発話数・行数はノートに一切ハードコードしていない。** すべて `config.json` と
+  `esd_*.list` から読み、検証ゲートは「その値どうしの整合」を見る
+- 新コーパスを足すときは §1.2 の `CORPORA` にエントリを 1 つ追加する。ノート本体は無改修
+
+### `cv_r1`（Common Voice / 公開トラック）
 
 [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.21119791.svg)](https://doi.org/10.5281/zenodo.21119791)
 
-- `cadence_cv_r1_meta_v20260702.tgz`（31.9 MiB）: config.json / esd×3 / cadseq 11010 / MANIFEST 他
-- `cadence_cv_r1_wavs_v20260702.tar`（4.81 GiB, 無圧縮）: wav ×18015（sr 44100 mono）
-- 298 話者 / esd train 14226・val 3789
-- **手動でのダウンロード・展開は不要**（train / eval ノートが自動で取得し、`config.json` の位置から
+- `cadence_cv_r1_meta_v20260702.tgz`（31.9 MiB）: config.json / esd×3 / cadseq / MANIFEST 他
+- `cadence_cv_r1_wavs_v20260702.tar`（4.81 GiB, 無圧縮）: wav（sr 44100 mono）
+- **手動でのダウンロード・展開は不要**（学習ノートが自動取得し、`config.json` の位置から
   データセットルートを判定して配置・検証する）
+- データシート: [`docs/DATASET_cv_r1.md`](docs/DATASET_cv_r1.md)
 
-## 実行順（最短・「そのまま使う」）
+### `csj_r1`（CSJ / 非公開トラック）
 
-1. `①` setup を実行（CPU で可・**初回の1回だけ**。Drive に fork を clone し底モデル等を取得する）
-2. `②` train を **GPU ランタイム**で実行 — GPU を自動判定して環境を構築し
+**CSJ 現物と、そこから作った tar は配布しない。** 手順:
+
+1. CSJ から学習バンドルを作る（`dataset_tools/` + [`docs/TRAIN_BUNDLE_SPEC.md`](docs/TRAIN_BUNDLE_SPEC.md)）
+2. `csj_r1.tar.gz` を自分の Drive の `MyDrive/Style-Bert-VITS2/corpus_in/` に置く
+3. 学習ノート §1.2 で `CORPUS = "csj_r1"` にして実行
+
+`corpus_in/` は `.gitignore` 済み。ノートは `csj_r1` に対して **URL を一切持たない**
+（= コードから配布が起き得ない）。スモークバンドルも `None`（公開 Releases に置けないため）で、
+`SMOKE=True` は assert で止まる。
+
+> **★成果物の扱い**: checkpoint・safetensors・合成音声はいずれも CSJ 由来。
+> Drive / HF / Zenodo いずれにも公開しないこと。共有する場合も共著者限定にする。
+
+## 実行順（最短）
+
+1. `①` setup を実行（CPU で可・**初回の1回だけ**。Drive に fork を clone し底モデル等を取得）
+2. `②` train を **GPU ランタイム**で実行 — §1.2 で `CORPUS` を選ぶ。GPU を自動判定して環境を構築し
    （標準 GPU = torch 2.3.1 / Blackwell = torch 2.11+cu128 入替 + 再起動 + shim。下の注意節を参照）、
-   **Zenodo からデータを VM ローカル `/content` に直接展開**して bert_gen → style_gen → 学習まで
-   1本で回す。**`preprocess_text` は走らせない**（配置済み esd の spk2id を再生成し得る）
+   **バンドルを VM ローカル `/content` に直接展開**して bert_gen → style_gen → 学習まで 1 本で回す。
+   **`preprocess_text` は走らせない**（配置済み esd の spk2id を再生成し得る）
 3. `③` eval を実行 — 弾き分け（x-vector）・自然性（UTMOS）・virtual 話者を評価。ノート冒頭 §0 が
    環境をゼロから再構築するので、学習と同一セッションである必要はない
 
 ②のノートが実行するコマンド（cwd = ローカルの fork 直下）:
 
 ```
-python bert_gen.py           -c Data/cv_r1/config.json
-python style_gen.py          -c Data/cv_r1/config.json
-python train_ms_jp_extra.py  -c Data/cv_r1/config.json -m Data/cv_r1
+python bert_gen.py           -c Data/{CORPUS}/config.json
+python style_gen.py          -c Data/{CORPUS}/config.json
+python train_ms_jp_extra.py  -c Data/{CORPUS}/config.json -m Data/{CORPUS}
 ```
 
-- `-m` は**モデル出力フォルダのパス**（`Data/cv_r1`）。`cv_r1` 単体は誤り（checkpoint がリポジトリ
-  直下の別ツリーに落ちる）。
-- checkpoint は `Data/cv_r1/models/`、合成用モデルは `model_assets/` に保存される。どちらも
-  **Drive への symlink** になっており、実体は Drive に永続化される（VM が切れても消えない）。
-- `batch=16 / 10 epoch ≈ 8,900〜9,000 step`, `freeze_decoder=True` は config 設定済み。
-  ローカル運用で ~3.3 it/s、全量 2 時間強。1000 step ごとに保存（Drive 書込で数分の「谷」は正常）。
+- `-m` は**モデル出力フォルダのパス**（`Data/{CORPUS}`）。`-m {CORPUS}` 単体は誤り
+  （checkpoint がリポジトリ直下の別ツリーに落ちる）。
+- checkpoint は `Data/{CORPUS}/models/`、合成用モデルは `model_assets/{CORPUS}/` に保存される。
+  どちらも **Drive への symlink** になっており、実体は Drive に永続化される（VM が切れても消えない）。
+- `freeze_decoder=True` は config 設定済み。step 数は `esd_train 行数 / batch × epochs` で決まる
+  （cv_r1 全量 = batch 16 / 10 epoch ≈ 8,900〜9,000 step、~3.3 it/s で 2 時間強）。
 - 開始直後のログで warm-start を必ず確認する: 「Loaded the pretrained models」+ Missing key
-  （`cadence_cond` / `emb_g` は新規層なので正常）なら OK。「train from scratch」が出たら即中断。
+  （`cadence_cond` / `emb_g` は新規層なので正常。`emb_g` は話者数依存なのでコーパスを替えれば
+  形状も変わる = Missing で正しい）なら OK。「train from scratch」が出たら即中断。
 - 切断後は ② の §1→§5 を再実行してから学習セルを再実行（Drive 上の最新 checkpoint から自動再開）。
 
-> **なぜローカル展開か**: Google Drive 直読みの学習は小ファイル I/O が律速となり GPU 使用率が
-> 0% に張り付く（完走に丸1日超）。Zenodo の tar（単一大ファイル）を VM ローカルに直接
-> ダウンロード・展開することで全区間 ~3.3 it/s、2 時間強で完走する。
-> DL は **aria2 の 16 並列**で行う（Zenodo は単一接続だと 1〜2 MB/s まで落ちることがあるため）。
-> それでも遅い場合や繰り返し使う場合は、tar 2 本を `DRIVE_BASE/zenodo_cache/` に置いておくと
-> Zenodo を経由せず Drive から複写する（取得セルの `CACHE_TO_DRIVE = True` で自動保存も可能）。
+> **★cadence sidecar は「静かに死ぬ」**: `data_utils.py` は `{wav}.cadseq.npy` を読み、
+> 見つからない / shape が `(音素数, 32)` でない場合、**例外を出さずゼロ系列で学習を続ける**。
+> 名前や長さを間違えたバンドルでも学習は「成功」し、cadence が効かないモデルが出来る
+> （UTMOS も落ちないので気づけない）。学習ノートの §5 検証ゲートが esd を 200 行サンプルして
+> これを実測で潰す。**NG のまま先へ進まないこと。**
 
-## 無料 Colab での動作確認（スモーク学習）
+> **なぜローカル展開か**: Google Drive 直読みの学習は小ファイル I/O が律速となり GPU 使用率が
+> 0% に張り付く（完走に丸1日超）。tar（単一大ファイル）を VM ローカルに直接展開することで
+> 全区間 ~3.3 it/s、2 時間強で完走する。公開 DL は **aria2 の 16 並列**で行う（Zenodo は単一接続だと
+> 1〜2 MB/s まで落ちることがあるため）。繰り返し使う場合は tar を `DRIVE_BASE/zenodo_cache/` に
+> 置いておくと Zenodo を経由せず Drive から複写する（`CACHE_TO_DRIVE = True` で自動保存も可能）。
+
+## 無料 Colab での動作確認（スモーク学習・`cv_r1` のみ）
 
 train ノート §1.5 で `SMOKE = True` にすると、**専用サブセットバンドル**
 `cadence_cv_r1_smoke_v1.tgz`（発話数上位 30 話者 × train 40 発話 ≒ 1,200 行 + val 60 行、~0.3 GB、
 GitHub Releases 配布）でパイプライン全体を通す。全量 4.81 GiB を落とさないため DL は 1〜2 分。
-既定の batch 4 / 2 epoch ≒ 600 step（100 step ごと保存。T4 の fp32 実測で batch 8 は OOM）で、無料枠の T4 なら**全体 40 分前後**に
-収まり、環境構築 → bert_gen → style_gen → warm-start 学習 → checkpoint 保存までを検証できる
-（T4 は標準経路 = torch 2.3.1・再起動不要）。
+既定の batch 4 / 2 epoch ≒ 600 step（100 step ごと保存。T4 の fp32 実測で batch 8 は OOM）で、
+無料枠の T4 なら**全体 40 分前後**に収まり、環境構築 → bert_gen → style_gen → warm-start 学習 →
+checkpoint 保存までを検証できる（T4 は標準経路 = torch 2.3.1・再起動不要）。
 
-- checkpoint はスモーク専用の `Data/cv_r1_smoke/models/`（VM ローカル・揮発）に保存され、
-  **Drive の本番 `models/` には書かない**（本番 checkpoint からの誤再開も起きない）。
-  合成用モデルも `model_assets/cv_r1_smoke/` に分離される。
-- バンドル内の config は全量と同一で spk2id（298 話者）を維持し、底モデルもそのまま使うため、
+- checkpoint はスモーク専用の `Data/{CORPUS}_smoke/models/`（VM ローカル・揮発）に保存され、
+  **Drive の本番 `models/` には書かない**。合成用モデルも `model_assets/{CORPUS}_smoke/` に分離される。
+- バンドル内の config は全量と同一で spk2id を維持し、底モデルもそのまま使うため、
   モデル形状・warm-start の検証としては本番と等価。
 - compute capability < 8.0 の GPU（T4 = 7.5 等）では bf16/fp16 を自動で無効化する（fp32）。
 - 学習品質の評価には使えない（step 数が2桁足りない）。目的は配管の検証のみ。
-- 完走後に声を聴きたいときは ④ 合成ノート（データセット展開不要・数分）。eval ノートはスモークモデルを評価対象にしない。
+- 完走後に声を聴きたいときは ④ 合成ノート（データセット展開不要・数分）。
 - バンドルは `colab/make_smoke_bundle.py` で全量 `Data/cv_r1` から決定的に再生成できる
   （GitHub Releases: tag `cv_r1-smoke-v1` / アセット名 `cadence_cv_r1_smoke_v1.tgz` 固定。
   ノートの取得 URL がこの tag・名前を指しているため変更しないこと）。
+- **`csj_r1` にスモークは無い**（サブセットも CSJ 由来物なので公開 Releases に置けない）。
+  必要なら少数話者の tar をローカルで作り、`CORPORA` に `fetch="local"` のエントリとして足す。
 
 ## Colab が Blackwell 系 GPU（sm_120）を割り当てた場合
 
@@ -123,15 +163,20 @@ train / eval ノートの §2 は `nvidia-smi` で compute capability を判定�
 
 ## ライセンス
 
-3層に分かれる点に注意:
+4 層に分かれる点に注意:
 
-- **コード（本 fork・`colab/` の Colab ノートを含む）: AGPL-3.0 / LGPL-3.0** — upstream Style-Bert-VITS2 を継承（下の upstream README の LICENSE 節、およびリポジトリの `LICENSE` / `LGPL_LICENSE` を参照）
-- **データ加工物・パイプライン: CC0** — Zenodo レコード（DOI 10.5281/zenodo.21119791）に準拠
-- **学習済みモデル（ckpt / safetensors）: AGPL-3.0** — 底モデル HF [`litagin/Style-Bert-VITS2-2.0-base-JP-Extra`](https://huggingface.co/litagin/Style-Bert-VITS2-2.0-base-JP-Extra)（License: agpl-3.0。継承元 Stardust-minus/Bert-VITS2-Japanese-Extra も agpl-3.0）の派生物として同一ライセンスで公開する。商用利用・改変可、ただし派生モデルは AGPL-3.0 継承、ネットワークサービスとして提供する場合もソース開示義務（本 fork が公開されているため充足済み）。
-
-<!-- ==================================================================== -->
-<!-- ▲▲▲ fork 追記セクション ここまで／以下は upstream README（無改変）▲▲▲   -->
-<!-- ==================================================================== -->
+- **コード（本 fork・`colab/` のノート・`dataset_tools/` を含む）: AGPL-3.0 / LGPL-3.0** —
+  upstream Style-Bert-VITS2 を継承（下の upstream README の LICENSE 節、およびリポジトリの
+  `LICENSE` / `LGPL_LICENSE` を参照）
+- **`cv_r1` のデータ加工物・パイプライン: CC0** — Zenodo レコード（DOI 10.5281/zenodo.21119791）に準拠
+- **`cv_r1` の学習済みモデル（ckpt / safetensors）: AGPL-3.0** — 底モデル HF
+  [`litagin/Style-Bert-VITS2-2.0-base-JP-Extra`](https://huggingface.co/litagin/Style-Bert-VITS2-2.0-base-JP-Extra)
+  （License: agpl-3.0。継承元 Stardust-minus/Bert-VITS2-Japanese-Extra も agpl-3.0）の派生物として
+  同一ライセンスで公開する。商用利用・改変可、ただし派生モデルは AGPL-3.0 継承、ネットワーク
+  サービスとして提供する場合もソース開示義務（本 fork が公開されているため充足済み）。
+- **★`csj_r1` のデータ・学習済みモデル・合成音声: 公開不可** — CSJ は二次配布禁止。
+  国立国語研究所（NINJAL）の利用許諾に従うこと。重みの公開には事前確認が必要。
+  AGPL-3.0 の開示義務は**コードに対するもの**であり、CSJ 由来の重みの配布を要求しない。
 
 ---
 
