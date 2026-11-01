@@ -35,6 +35,9 @@ class HyperParametersTrain(BaseModel):
     freeze_emo: bool = False
     freeze_style: bool = False
     freeze_decoder: bool = False
+    # R1′: 継続学習で optim_g の weight_decay を config から上書きする（None = AdamW 既定 0.01 のまま）。
+    # pydantic は未定義キーを捨てるので、ここに無いと train_ms_jp_extra.py の getattr が None になる。
+    weight_decay_g: Optional[float] = None
 
 
 class HyperParametersData(BaseModel):
