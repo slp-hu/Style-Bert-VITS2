@@ -534,6 +534,17 @@ def run():
             epoch_str = 1
             global_step = 0
 
+    # --- R1′: optim_g の weight_decay を config で上書き（train.weight_decay_g）---------
+    # 再開時は optimizer.load_state_dict が checkpoint 側の weight_decay(AdamW 既定 0.01)
+    # を param_groups に戻すため、ここ（読み込み後）で効かせる。emb_g.weight は 1 テンソル
+    # なので、学習に出ない話者の行も decay で一様に縮む → 継続学習では 0 にして R1 の行を
+    # そのまま残す（HANDOVER_r1prime §3.2 / 検査 (d)）。キーが無ければ従来どおり。
+    _wd_g = getattr(hps.train, "weight_decay_g", None)
+    if _wd_g is not None:
+        for _pg in optim_g.param_groups:
+            _pg["weight_decay"] = float(_wd_g)
+        logger.info(f"optim_g weight_decay overridden -> {float(_wd_g)}")
+
     def lr_lambda(epoch):
         """
         Learning rate scheduler for warmup and exponential decay.
